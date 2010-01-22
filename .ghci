@@ -1,0 +1,3 @@
+:module Language.Haskell.Exts Data.Generics
+:def parse return . ("let ParseOk e = parseExp " ++) . (++ "\ne") . show
+:load *LambdaCaseLet Main

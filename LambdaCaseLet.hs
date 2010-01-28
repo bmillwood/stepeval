@@ -195,6 +195,11 @@ patternMatch :: Pat -> Exp -> PatternMatch
 -- Strip parentheses
 patternMatch (PParen p) x = patternMatch p x
 patternMatch p (Paren x) = patternMatch p x
+-- Translate infix cases to prefix cases for simplicity
+patternMatch (PInfixApp p q r) s = patternMatch (PApp q [p, r]) s
+patternMatch p (InfixApp a n b) = case n of
+ QVarOp _ -> Force
+ QConOp q -> patternMatch p (App (App (Con q) a) b)
 -- Patterns that always match
 patternMatch (PWildCard) _ = Match []
 patternMatch (PVar n) x = Match [(n, x)]
@@ -203,20 +208,15 @@ patternMatch (PLit p) (Lit q)
  | p == q = Match []
  | otherwise = NoMatch
 patternMatch (PLit _) _ = Force
-patternMatch (PList []) (List []) = Match []
-patternMatch (PList []) (List _) = NoMatch
-patternMatch (PList []) (InfixApp _ (QConOp (Special Cons)) _) = NoMatch
-patternMatch (PList []) _ = Force
+patternMatch (PList []) x = case argList x of
+ [List []] -> Match []
+ [List _] -> NoMatch
+ Con _ : _ -> NoMatch
+ _ -> Force
 -- Lists of patterns
 patternMatch (PList (p:ps)) q =
  patternMatch (PApp (Special Cons) [p, PList ps]) q
--- Translate infix cases to prefix cases for simplicity
-patternMatch (PInfixApp p q r) s = patternMatch (PApp q [p, r]) s
-patternMatch p (InfixApp a n b) = case n of
- QVarOp _ -> Force
- QConOp q -> patternMatch p (App (App (Con q) a) b)
 -- Constructor matches
--- TODO worry about duplicate names in ps
 patternMatch (PApp n ps) q = case argList q of
  (Con c:xs)
   | c == n -> mconcat (zipWith patternMatch ps xs)

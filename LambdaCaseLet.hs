@@ -228,6 +228,9 @@ patternMatch _ _ = error "Unimplemented pattern match"
 argList :: Exp -> [Exp]
 argList = reverse . atl
  where atl (App f x) = x : atl f
+       atl (InfixApp p o q) = [q, p, case o of
+        QVarOp n -> Var n
+        QConOp n -> Con n]
        atl e = [e]
 
 replace :: Name -> Exp -> Exp -> Exp

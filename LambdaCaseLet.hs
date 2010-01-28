@@ -18,6 +18,7 @@ import Language.Haskell.Exts (
  Exp (App, Case, Con, InfixApp, Lambda, Let, List, Lit, Paren, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
+ Literal (Char, Frac, Int, String),
  Pat (PApp, PInfixApp, PList, PLit, PParen, PVar, PWildCard),
  Name (Ident, Symbol),
  QName (Special, UnQual),
@@ -57,21 +58,29 @@ liftE :: (Exp -> Exp) -> Eval -> Eval
 liftE f (Eval e) = Eval (f e)
 liftE _ e = e
 
+orE :: Eval -> Eval -> Eval
+orE r@(Eval _) _ = r
+orE _ r@(Eval _) = r
+orE r _ = r
+infixr 3 `orE`
+
 (|$|) = liftE
 infix 4 |$|
 
 stepeval :: Env -> Exp -> Eval
 stepeval v (Paren p) = stepeval v p
+-- These two cases are not really helpful.
 stepeval _ (List (x:xs)) = Eval $
  InfixApp x (QConOp (Special Cons)) (List xs)
+stepeval _ (Lit (String (x:xs))) = Eval $
+ InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
 stepeval v (Var n) = need v (fromQName n)
-stepeval v (InfixApp p o q) = case o of
- QVarOp n -> (\f -> App (App f p) q) |$| need v (fromQName n)
- QConOp _ -> case stepeval v p of
-  NoEval -> InfixApp p o |$| stepeval v q
-  r@(EnvEval _) -> r
-  Eval p' -> Eval $ InfixApp p' o q
-stepeval v (App f x) = case f of
+stepeval v e@(InfixApp p o q) = case o of
+ QVarOp n -> magic v e `orE`
+  (\f -> App (App f p) q) |$| need v (fromQName n)
+ QConOp _ -> (\p' -> InfixApp p' o q) |$| stepeval v p `orE`
+  InfixApp p o |$| stepeval v q
+stepeval v e@(App f x) = magic v e `orE` case f of
  Paren p -> stepeval v (App p x)
  Lambda _ [] _ -> error "Lambda with no patterns?"
  Lambda s ps@(p:qs) e -> case patternMatch p x of
@@ -144,6 +153,15 @@ stepeval v (Let (BDecls bs) e) = let r = stepeval (Map.union newBinds v) e
        fromLet l = error $ "Unimplemented let binding: " ++ show l
 stepeval _ e@(Let _ _) = error $ "Unimplemented let binding: " ++ show e
 stepeval _ _ = NoEval
+
+magic :: Env -> Exp -> Eval
+magic _ (App (App (Var (UnQual (Symbol "+"))) (Lit m)) (Lit n)) =
+ case (n, m) of
+  (Int x, Int y) -> Eval . Lit . Int $ x + y
+  (Frac x, Frac y) -> Eval . Lit . Frac $ x + y
+  _ -> NoEval
+magic v (InfixApp p (QVarOp o) q) = magic v (App (App (Var o) p) q)
+magic _ _ = NoEval
 
 shedBinds :: Exp -> Env -> Env
 shedBinds e v = filterWithKey (\k _ -> k `elem` usedKeys) v

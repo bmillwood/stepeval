@@ -238,6 +238,9 @@ replace n x = everywhereBut (shadows n) (mkT replaceOne)
 shadows :: Name -> GenericQ Bool
 shadows n = mkQ False exprS `extQ` altS
  where exprS (Lambda _ ps _) = anywhere (== PVar n) ps
+       exprS (Let (BDecls bs) _) = any letS bs
+        where letS (PatBind _ p _ _ _) = anywhere (== PVar n) p
+              letS _ = False
        exprS _ = False
        altS (Alt _ p _ _) = anywhere (== PVar n) p
 

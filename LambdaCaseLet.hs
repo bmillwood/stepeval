@@ -154,12 +154,14 @@ stepeval v (Let (BDecls bs) e) = let r = stepeval (Map.union newBinds v) e
 stepeval _ e@(Let _ _) = error $ "Unimplemented let binding: " ++ show e
 stepeval _ _ = NoEval
 
+-- this is horrible
 magic :: Env -> Exp -> Eval
-magic _ (App (App (Var (UnQual (Symbol "+"))) (Lit m)) (Lit n)) =
- case (n, m) of
-  (Int x, Int y) -> Eval . Lit . Int $ x + y
-  (Frac x, Frac y) -> Eval . Lit . Frac $ x + y
-  _ -> NoEval
+magic v (App (App (Var p@(UnQual (Symbol "+"))) m) n) =
+ case (m, n) of
+  (Lit (Int x), Lit (Int y)) -> Eval . Lit . Int $ x + y
+  (Lit (Frac x), Lit (Frac y)) -> Eval . Lit . Frac $ x + y
+  (Lit _, e) -> InfixApp m (QVarOp p) |$| stepeval v e
+  (e, _) -> (\e' -> InfixApp e' (QVarOp p) n) |$| stepeval v e
 magic v (InfixApp p (QVarOp o) q) = magic v (App (App (Var o) p) q)
 magic _ _ = NoEval
 

@@ -2,13 +2,13 @@
 module LambdaCaseLet (eval, itereval, printeval) where
 
 import Control.Applicative ((<$), (<*>))
+import Control.Monad (guard)
 import Data.Data (Typeable, gmapQ)
-import Data.Map (Map, filterWithKey, keys, lookup, insert, delete)
-import qualified Data.Map as Map (empty, fromList, null, toList, union)
+import Data.List (partition)
 import Data.Generics (GenericQ,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
-import Data.Maybe (fromJust)
-import Data.Monoid (Monoid, mappend, mempty, mconcat, Endo (Endo), appEndo)
+import Data.Monoid (Monoid, mappend, mempty, mconcat,
+ Endo (Endo), appEndo, First (First), getFirst)
 import qualified Data.Set as Set (empty, fromList, toList, union)
 import Prelude hiding (lookup)
 import Language.Haskell.Exts (
@@ -25,7 +25,6 @@ import Language.Haskell.Exts (
  QOp (QConOp, QVarOp),
  Rhs (UnGuardedRhs),
  SpecialCon (Cons),
- SrcLoc (SrcLoc),
  Stmt (Qualifier),
  prettyPrint
  )
@@ -36,13 +35,13 @@ eval :: Exp -> Exp
 eval = last . itereval
 
 itereval :: Exp -> [Exp]
-itereval e = e : case stepeval Map.empty e of
+itereval e = e : case stepeval [] e of
  Eval e' -> itereval e'
  _ -> []
 
 stepseval :: Int -> Exp -> Eval
 stepseval 0 e = Eval e
-stepseval n e = case stepeval Map.empty e of
+stepseval n e = case stepeval [] e of
  Eval e' -> stepseval (n - 1) e'
  r -> r
 
@@ -51,8 +50,8 @@ printeval = mapM_ (putStrLn . prettyPrint) . itereval
 
 -- Force -> might match with further evaluation
 data PatternMatch = NoMatch | Force | Match [(Name, Exp)]
-data Eval = NoEval | EnvEval (Name, Exp) | Eval Exp deriving Show
-type Env = Map Name Exp
+data Eval = NoEval | EnvEval Decl | Eval Exp deriving Show
+type Env = [Decl]
 
 liftE :: (Exp -> Exp) -> Eval -> Eval
 liftE f (Eval e) = Eval (f e)
@@ -136,21 +135,13 @@ stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
    | otherwise -> Eval (Case e as)
 stepeval _ (Case _ _) = error "Unimplemented case branch"
 stepeval _ (Let (BDecls []) e) = Eval e
-stepeval v (Let (BDecls bs) e) = let r = stepeval (Map.union newBinds v) e
- in case r of
+stepeval v (Let (BDecls bs) e) = case stepeval (bs ++ v) e of
   NoEval -> NoEval
-  Eval e' -> Eval $ relet (cleanBinds e') e'
-  EnvEval e' -> maybe r (Eval . (relet \/ e)) $ updateBind e' (cleanBinds e)
- where newBinds = Map.fromList $ map fromLet bs
-       cleanBinds e = shedBinds e newBinds
-       relet v e
-        | Map.null v = e
-        | otherwise = Let (BDecls (map reletOne (Map.toList v))) e
-       reletOne (n, e) = PatBind (SrcLoc "" 0 0) -- hmm
-        (PVar n) Nothing (UnGuardedRhs e) (BDecls [])
-       fromLet (PatBind _ (PVar p) Nothing (UnGuardedRhs q) (BDecls [])) =
-        (p, q)
-       fromLet l = error $ "Unimplemented let binding: " ++ show l
+  Eval e' -> Eval $ newLet e' bs
+  r@(EnvEval e') -> maybe r (Eval . newLet e) $ updateBind e' bs
+ where newLet e bs = case tidyBinds e bs of
+        [] -> e
+        bs' -> Let (BDecls bs') e
 stepeval _ e@(Let _ _) = error $ "Unimplemented let binding: " ++ show e
 stepeval _ _ = NoEval
 
@@ -165,24 +156,39 @@ magic v (App (App (Var p@(UnQual (Symbol "+"))) m) n) =
 magic v (InfixApp p (QVarOp o) q) = magic v (App (App (Var o) p) q)
 magic _ _ = NoEval
 
-shedBinds :: Exp -> Env -> Env
-shedBinds e v = filterWithKey (\k _ -> k `elem` usedKeys) v
- where usedKeys = sb [e] v
-       sb es v = let us = usedIn es v in if null us then []
-        else us ++ sb (e : map (fromJust . (lookup \/ v)) us) (deletes us v)
-       usedIn es v = filter (\k -> any (isFreeIn k) es) (keys v)
-       deletes ks = compose (map delete ks)
+tidyBinds :: Exp -> Env -> Env
+tidyBinds e v = go [e] v
+ where go es ds = let (ys, xs) = partition (usedIn es) ds
+        in if null ys then [] else ys ++ go (concatMap exprs ys) xs
+       binds (PatBind _ (PVar n) _ _ _) = [n]
+       binds l = error $ "Unimplemented let binding: " ++ show l
+       exprs (PatBind _ _ _ (UnGuardedRhs e) _) = [e]
+       exprs l = error $ "Unimplemented let binding: " ++ show l
+       usedIn es d = any (\n -> any (isFreeIn n) es) (binds d)
 
-updateBind :: (Name, Exp) -> Env -> Maybe Env
-updateBind (n, e) v = insert n e v <$ lookup n v
+updateBind :: Decl -> Env -> Maybe Env
+updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
+ (_, []) -> Nothing
+ (h, _ : t) -> Just $ h ++ p : t
+ where match (PatBind _ (PVar m) _ _ _) = n == m
+       match _ = False
+updateBind l _ = error $ "Unimplemented let binding: " ++ show l
 
 need :: Env -> Name -> Eval
-need v n = case lookup n v of
+need v n = case envLookup v n of
  Nothing -> NoEval
- Just e -> case stepeval v e of
-  NoEval -> Eval e
-  Eval e' -> EnvEval (n, e')
-  f -> f
+ -- reduces to normal form *way* too eagerly. fix!
+ Just (PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
+  case stepeval v e of
+   NoEval -> Eval e
+   Eval e' -> EnvEval (PatBind s (PVar n) t (UnGuardedRhs e') (BDecls []))
+   f -> f
+ l -> error $ "Unimplemented let binding: " ++ show l
+
+envLookup :: Env -> Name -> Maybe Decl
+envLookup v n = getFirst . mconcat . map (First . match) $ v
+ where match r@(PatBind _ (PVar m) _ _ _) = r <$ guard (m == n)
+       match _ = Nothing
 
 fromQName :: QName -> Name
 fromQName (UnQual n) = n

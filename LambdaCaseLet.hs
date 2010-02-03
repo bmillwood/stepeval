@@ -68,7 +68,6 @@ infix 4 |$|
 
 stepeval :: Env -> Exp -> Eval
 stepeval v (Paren p) = stepeval v p
--- These two cases are not really helpful.
 stepeval _ (List (x:xs)) = Eval $
  InfixApp x (QConOp (Special Cons)) (List xs)
 stepeval _ (Lit (String (x:xs))) = Eval $
@@ -93,8 +92,9 @@ stepeval v e@(App f x) = magic v e `orE` case f of
     where newLambda = Lambda s (fixNames ps) (fixNames e)
           fixNames x = everything (.) (mkQ id (rename <*> newName)) ps x
           rename n n' = everywhereBut (shadows n) (mkT $ renameOne n n')
-          renameOne n n' x | x == n = n'
-          renameOne _ _ x = x
+          renameOne n n' x
+           | x == n = n'
+           | otherwise = x
           newName m@(Ident n)
            | conflicts m = newName . Ident $ n ++ ['\'']
            | otherwise = m

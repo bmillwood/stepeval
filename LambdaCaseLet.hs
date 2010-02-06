@@ -83,7 +83,7 @@ stepeval v e@(InfixApp p o q) = case o of
 stepeval v e@(App f x) = magic v e `orE` case f of
  Paren p -> stepeval v (App p x)
  Lambda _ [] _ -> error "Lambda with no patterns?"
- Lambda s ps@(p:qs) e -> case patternMatch p x of
+ Lambda s ps@(p:qs) e -> case patternMatch' v p x of
   NoMatch -> NoEval
   Force -> App (Paren f) |$| stepeval v x
   Match ms -> case qs of
@@ -113,7 +113,7 @@ stepeval v e@(App f x) = magic v e `orE` case f of
   r -> r
 stepeval _ (Case _ []) = error "Case with no branches?"
 stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
- case patternMatch p e of
+ case patternMatch' v p e of
   Match rs -> case a of
    UnGuardedAlt x -> Eval (applyMatches rs x)
    GuardedAlts (GuardedAlt m ss x : gs) -> case ss of
@@ -179,13 +179,12 @@ updateBind l _ = error $ "Unimplemented let binding: " ++ show l
 need :: Env -> Name -> Eval
 need v n = case envLookup v n of
  Nothing -> NoEval
- -- reduces to normal form *way* too eagerly. fix!
  Just (PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
   case stepeval v e of
    NoEval -> Eval e
    Eval e' -> EnvEval (PatBind s (PVar n) t (UnGuardedRhs e') (BDecls []))
    f -> f
- l -> error $ "Unimplemented let binding: " ++ show l
+ Just l -> error $ "Unimplemented let binding: " ++ show l
 
 envLookup :: Env -> Name -> Maybe Decl
 envLookup v n = getFirst . mconcat . map (First . match) $ v
@@ -198,6 +197,11 @@ fromQName q = error $ "fromQName: " ++ show q
 
 applyMatches :: [(Name, Exp)] -> Exp -> Exp
 applyMatches = compose . map (uncurry replace)
+
+applyBinds :: [Decl] -> Exp -> Exp
+applyBinds = compose . map mkReplace
+ where mkReplace (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])) = replace n e
+       mkReplace l = error $ "Unimplemented let binding: " ++ show l
 
 compose :: [a -> a] -> a -> a
 compose = appEndo . mconcat . map Endo
@@ -218,6 +222,9 @@ instance Monoid PatternMatch where
  mappend NoMatch _ = NoMatch
  mappend Force _ = Force
  mappend (Match f) (Match g) = Match (f ++ g)
+
+patternMatch' :: Env -> Pat -> Exp -> PatternMatch
+patternMatch' v p = patternMatch p . applyBinds v
 
 patternMatch :: Pat -> Exp -> PatternMatch
 -- Strip parentheses
@@ -261,6 +268,7 @@ argList = reverse . atl
         QConOp n -> Con n]
        atl e = [e]
 
+-- Note that everywhereBut goes bottom-up, so this won't descend infinitely
 replace :: Name -> Exp -> Exp -> Exp
 replace n x = everywhereBut (shadows n) (mkT replaceOne)
  where replaceOne (Var (UnQual m)) | m == n = x

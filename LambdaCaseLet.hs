@@ -52,7 +52,9 @@ printeval = mapM_ (putStrLn . prettyPrint) . itereval
 
 -- Force -> might match with further evaluation
 data PatternMatch = NoMatch | Force | Match [(Name, Exp)]
-data Eval = NoEval | EnvEval Decl | Eval Exp deriving Show
+ deriving Show
+data Eval = NoEval | EnvEval Decl | Eval Exp
+ deriving Show
 type Env = [Decl]
 
 liftE :: (Exp -> Exp) -> Eval -> Eval

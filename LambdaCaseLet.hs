@@ -3,8 +3,8 @@ module LambdaCaseLet (eval, itereval, printeval) where
 
 import Control.Applicative ((<$), (<*>))
 import Control.Monad (guard)
-import Data.Data (Typeable, gmapQ)
-import Data.List (partition)
+import Data.Data (Typeable, gmapQ, gmapT)
+import Data.List (lookup, partition)
 import Data.Generics (GenericQ,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
 import Data.Monoid (Monoid, mappend, mempty, mconcat,
@@ -198,12 +198,13 @@ fromQName (UnQual n) = n
 fromQName q = error $ "fromQName: " ++ show q
 
 applyMatches :: [(Name, Exp)] -> Exp -> Exp
-applyMatches = compose . map (uncurry replace)
-
-applyBinds :: [Decl] -> Exp -> Exp
-applyBinds = compose . map mkReplace
- where mkReplace (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])) = replace n e
-       mkReplace l = error $ "Unimplemented let binding: " ++ show l
+applyMatches [] e = e
+applyMatches ms e = gmapT (mkT $ applyMatches notShadowed) (replaceOne e)
+ where replaceOne e@(Var (UnQual m)) = case lookup m ms of
+        Nothing -> e
+        Just e' -> replaceOne e'
+       replaceOne e = e
+       notShadowed = filter (not . flip shadows e . fst) ms
 
 compose :: [a -> a] -> a -> a
 compose = appEndo . mconcat . map Endo
@@ -226,7 +227,9 @@ instance Monoid PatternMatch where
  mappend (Match f) (Match g) = Match (f ++ g)
 
 patternMatch' :: Env -> Pat -> Exp -> PatternMatch
-patternMatch' v p = patternMatch p . applyBinds v
+patternMatch' v p = patternMatch p . applyMatches (map mkMatch v)
+ where mkMatch (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])) = (n, e)
+       mkMatch l = error $ "Unimplemented let binding: " ++ show l
 
 patternMatch :: Pat -> Exp -> PatternMatch
 -- Strip parentheses
@@ -269,12 +272,6 @@ argList = reverse . atl
         QVarOp n -> Var n
         QConOp n -> Con n]
        atl e = [e]
-
--- Note that everywhereBut goes bottom-up, so this won't descend infinitely
-replace :: Name -> Exp -> Exp -> Exp
-replace n x = everywhereBut (shadows n) (mkT replaceOne)
- where replaceOne (Var (UnQual m)) | m == n = x
-       replaceOne e = e
 
 shadows :: Name -> GenericQ Bool
 shadows n = mkQ False exprS `extQ` altS

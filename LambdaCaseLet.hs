@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-} -- for anywhereBut
+{-# LANGUAGE RankNTypes #-}
 module LambdaCaseLet (eval, itereval, printeval) where
 
 import Control.Applicative ((<$), (<*>))
@@ -39,11 +39,13 @@ itereval e = e : case stepeval [] e of
  Eval e' -> itereval e'
  _ -> []
 
+{-
 stepseval :: Int -> Exp -> Eval
 stepseval 0 e = Eval e
 stepseval n e = case stepeval [] e of
  Eval e' -> stepseval (n - 1) e'
  r -> r
+-}
 
 printeval :: Exp -> IO ()
 printeval = mapM_ (putStrLn . prettyPrint) . itereval

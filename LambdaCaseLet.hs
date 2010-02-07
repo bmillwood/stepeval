@@ -31,6 +31,9 @@ import Language.Haskell.Exts (
 eval :: Exp -> Exp
 eval = last . itereval
 
+printeval :: Exp -> IO ()
+printeval = mapM_ (putStrLn . prettyPrint) . itereval
+
 itereval :: Exp -> [Exp]
 itereval e = e : case stepeval [] e of
  Eval e' -> itereval e'
@@ -43,9 +46,6 @@ stepseval n e = case stepeval [] e of
  Eval e' -> stepseval (n - 1) e'
  r -> r
 -}
-
-printeval :: Exp -> IO ()
-printeval = mapM_ (putStrLn . prettyPrint) . itereval
 
 -- Force -> might match with further evaluation
 data PatternMatch = NoMatch | Force | Match [(Name, Exp)]
@@ -126,7 +126,7 @@ stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
        else Eval $ mkCase (GuardedAlts gs)
      | otherwise -> NoEval
     [Qualifier q] -> mkCase . newAlt |$| stepeval v q
-    _ -> error "Unimplemented guarded alt"
+    a -> todo a
     where newAlt q = GuardedAlts (GuardedAlt m [Qualifier q] x : gs)
           mkCase a = Case e (Alt l p a (BDecls []) : as)
    GuardedAlts [] -> error "Case branch with no expression?"
@@ -134,7 +134,7 @@ stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
   NoMatch
    | null as -> NoEval
    | otherwise -> Eval (Case e as)
-stepeval _ (Case _ _) = error "Unimplemented case branch"
+stepeval _ e@(Case _ _) = todo e
 stepeval _ (Let (BDecls []) e) = Eval e
 stepeval v (Let (BDecls bs) e) = case stepeval (bs ++ v) e of
   NoEval -> NoEval
@@ -143,10 +143,9 @@ stepeval v (Let (BDecls bs) e) = case stepeval (bs ++ v) e of
  where newLet e bs = case tidyBinds e bs of
         [] -> e
         bs' -> Let (BDecls bs') e
-stepeval _ e@(Let _ _) = error $ "Unimplemented let binding: " ++ show e
-stepeval _ _ = NoEval
+stepeval _ e = todo e
 
--- this is horrible
+-- this is unpleasant
 magic :: Env -> Exp -> Eval
 magic v (App (App (Var p@(UnQual (Symbol "+"))) m) n) =
  case (m, n) of
@@ -162,9 +161,9 @@ tidyBinds e v = go [e] v
  where go es ds = let (ys, xs) = partition (usedIn es) ds
         in if null ys then [] else ys ++ go (concatMap exprs ys) xs
        binds (PatBind _ (PVar n) _ _ _) = [n]
-       binds l = error $ "Unimplemented let binding: " ++ show l
+       binds l = todo l
        exprs (PatBind _ _ _ (UnGuardedRhs e) _) = [e]
-       exprs l = error $ "Unimplemented let binding: " ++ show l
+       exprs l = todo l
        usedIn es d = any (\n -> any (isFreeIn n) es) (binds d)
 
 updateBind :: Decl -> Env -> Maybe Env
@@ -173,7 +172,7 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
  (h, _ : t) -> Just $ h ++ p : t
  where match (PatBind _ (PVar m) _ _ _) = n == m
        match _ = False
-updateBind l _ = error $ "Unimplemented let binding: " ++ show l
+updateBind l _ = todo l
 
 need :: Env -> Name -> Eval
 need v n = case envLookup v n of
@@ -183,12 +182,12 @@ need v n = case envLookup v n of
    NoEval -> Eval e
    Eval e' -> EnvEval (PatBind s (PVar n) t (UnGuardedRhs e') (BDecls []))
    f -> f
- Just l -> error $ "Unimplemented let binding: " ++ show l
+ Just l -> todo l
 
 envLookup :: Env -> Name -> Maybe Decl
 envLookup v n = find match v
  where match (PatBind _ (PVar m) _ _ _) = m == n
-       match l = error $ "Unimplemented let binding: " ++ show l
+       match l = todo l
 
 fromQName :: QName -> Name
 fromQName (UnQual n) = n
@@ -223,7 +222,7 @@ instance Monoid PatternMatch where
 patternMatch' :: Env -> Pat -> Exp -> PatternMatch
 patternMatch' v p = patternMatch p . applyMatches (map mkMatch v)
  where mkMatch (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])) = (n, e)
-       mkMatch l = error $ "Unimplemented let binding: " ++ show l
+       mkMatch l = todo l
 
 patternMatch :: Pat -> Exp -> PatternMatch
 -- Strip parentheses
@@ -257,7 +256,7 @@ patternMatch (PApp n ps) q = case argList q of
   | otherwise -> NoMatch
  _ -> Force
 -- Fallback case
-patternMatch _ _ = error "Unimplemented pattern match"
+patternMatch p q = todo (p, q)
 
 argList :: Exp -> [Exp]
 argList = reverse . atl
@@ -282,4 +281,7 @@ anywhere p = everything (||) (mkQ False p)
 -- needs RankNTypes
 anywhereBut :: GenericQ Bool -> GenericQ Bool -> GenericQ Bool
 anywhereBut p q x = not (p x) && or (q x : gmapQ (anywhereBut p q) x)
+
+todo :: (Show s) => s -> a
+todo = error . ("Not implemented: " ++) . show
 

@@ -1,16 +1,13 @@
 {-# LANGUAGE RankNTypes #-}
 module LambdaCaseLet (eval, itereval, printeval) where
 
-import Control.Applicative ((<$), (<*>))
-import Control.Monad (guard)
+import Control.Applicative ((<*>))
 import Data.Data (Typeable, gmapQ, gmapT)
-import Data.List (lookup, partition)
+import Data.List (find, partition)
 import Data.Generics (GenericQ,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
-import Data.Monoid (Monoid, mappend, mempty, mconcat,
- Endo (Endo), appEndo, First (First), getFirst)
+import Data.Monoid (Monoid, mappend, mempty, mconcat)
 import qualified Data.Set as Set (empty, fromList, toList, union)
-import Prelude hiding (lookup)
 import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
@@ -189,9 +186,9 @@ need v n = case envLookup v n of
  Just l -> error $ "Unimplemented let binding: " ++ show l
 
 envLookup :: Env -> Name -> Maybe Decl
-envLookup v n = getFirst . mconcat . map (First . match) $ v
- where match r@(PatBind _ (PVar m) _ _ _) = r <$ guard (m == n)
-       match _ = Nothing
+envLookup v n = find match v
+ where match (PatBind _ (PVar m) _ _ _) = m == n
+       match l = error $ "Unimplemented let binding: " ++ show l
 
 fromQName :: QName -> Name
 fromQName (UnQual n) = n
@@ -205,9 +202,6 @@ applyMatches ms e = gmapT (mkT $ applyMatches notShadowed) (replaceOne e)
         Just e' -> replaceOne e'
        replaceOne e = e
        notShadowed = filter (not . flip shadows e . fst) ms
-
-compose :: [a -> a] -> a -> a
-compose = appEndo . mconcat . map Endo
 
 isFreeIn :: Name -> Exp -> Bool
 isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))

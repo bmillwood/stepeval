@@ -143,6 +143,8 @@ stepeval v (Let (BDecls bs) e) = case stepeval (bs ++ v) e of
  where newLet e bs = case tidyBinds e bs of
         [] -> e
         bs' -> Let (BDecls bs') e
+stepeval _ (Lit _) = NoEval
+stepeval _ (List []) = NoEval
 stepeval _ e = todo e
 
 -- this is unpleasant

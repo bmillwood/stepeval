@@ -50,7 +50,7 @@ stepseval n e = case stepeval [] e of
 -- Force -> might match with further evaluation
 data PatternMatch = NoMatch | Force | Match [(Name, Exp)]
  deriving Show
-data Eval = NoEval | EnvEval Decl | Eval Exp
+data Eval = NoEval | Done | EnvEval Decl | Eval Exp
  deriving Show
 type Env = [Decl]
 
@@ -108,7 +108,7 @@ stepeval v e@(App f x) = magic v e `orE` case f of
            map (freeNames . snd) $ ms
  _ -> case stepeval v f of
   Eval g -> Eval $ App g x
-  NoEval -> App f |$| stepeval v x
+  Done -> App f |$| stepeval v x
   r -> r
 stepeval _ (Case _ []) = error "Case with no branches?"
 stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
@@ -137,14 +137,14 @@ stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
 stepeval _ e@(Case _ _) = todo e
 stepeval _ (Let (BDecls []) e) = Eval e
 stepeval v (Let (BDecls bs) e) = case stepeval (bs ++ v) e of
-  NoEval -> NoEval
   Eval e' -> Eval $ newLet e' bs
   r@(EnvEval e') -> maybe r (Eval . newLet e) $ updateBind e' bs
+  r -> r
  where newLet e bs = case tidyBinds e bs of
         [] -> e
         bs' -> Let (BDecls bs') e
-stepeval _ (Lit _) = NoEval
-stepeval _ (List []) = NoEval
+stepeval _ (Lit _) = Done
+stepeval _ (List []) = Done
 stepeval _ e = todo e
 
 -- this is unpleasant
@@ -181,7 +181,7 @@ need v n = case envLookup v n of
  Nothing -> NoEval
  Just (PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
   case stepeval v e of
-   NoEval -> Eval e
+   Done -> Eval e
    Eval e' -> EnvEval (PatBind s (PVar n) t (UnGuardedRhs e') (BDecls []))
    f -> f
  Just l -> todo l

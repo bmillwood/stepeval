@@ -165,7 +165,7 @@ magic v (InfixApp p (QVarOp o) q) = magic v (App (App (Var o) p) q)
 magic _ _ = Done
 
 tidyBinds :: Exp -> Env -> Env
-tidyBinds e v = go [e] v
+tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v
  where go es ds = let (ys, xs) = partition (usedIn es) ds
         in if null ys then [] else ys ++ go (concatMap exprs ys) xs
        binds (PatBind _ (PVar n) _ _ _) = [n]

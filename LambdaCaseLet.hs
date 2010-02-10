@@ -150,6 +150,7 @@ step v (Let (BDecls bs) e) = case step (bs ++ v) e of
         bs' -> Let (BDecls bs') e
 step _ (Lit _) = Done
 step _ (List []) = Done
+step _ (Con _) = Done
 step _ e = todo e
 
 -- this is unpleasant

@@ -36,7 +36,7 @@ printeval :: Exp -> IO ()
 printeval = mapM_ (putStrLn . prettyPrint) . itereval
 
 itereval :: Exp -> [Exp]
-itereval = unfoldr (fmap (join (,)) . stepeval)
+itereval e = e : unfoldr (fmap (join (,)) . stepeval) e
 
 stepseval :: Int -> Exp -> Maybe Exp
 stepseval n = foldr (<=<) return $ replicate n stepeval

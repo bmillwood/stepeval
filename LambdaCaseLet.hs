@@ -1,9 +1,10 @@
 {-# LANGUAGE RankNTypes #-}
-module LambdaCaseLet (eval, itereval, printeval) where
+module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 
 import Control.Applicative ((<*>))
+import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
-import Data.List (find, partition)
+import Data.List (find, partition, unfoldr)
 import Data.Generics (GenericQ,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
 import Data.Monoid (Monoid, mappend, mempty, mconcat)
@@ -35,61 +36,63 @@ printeval :: Exp -> IO ()
 printeval = mapM_ (putStrLn . prettyPrint) . itereval
 
 itereval :: Exp -> [Exp]
-itereval e = e : case stepeval [] e of
- Eval e' -> itereval e'
- _ -> []
+itereval = unfoldr (fmap (join (,)) . stepeval)
 
-{-
-stepseval :: Int -> Exp -> Eval
-stepseval 0 e = Eval e
-stepseval n e = case stepeval [] e of
- Eval e' -> stepseval (n - 1) e'
- r -> r
--}
+stepseval :: Int -> Exp -> Maybe Exp
+stepseval n = foldr (<=<) return $ replicate n stepeval
 
--- Force -> might match with further evaluation
-data PatternMatch = NoMatch | Force | Match [(Name, Exp)]
+stepeval :: Exp -> Maybe Exp
+stepeval e = case step [] e of
+ Step (Eval e') -> Just e'
+ _ -> Nothing
+
+-- Sometimes evaluating a subexpression means evaluating an outer expression
+data Eval = EnvEval Decl | Eval Exp
  deriving Show
-data Eval = NoEval | Done | EnvEval Decl | Eval Exp
+data EvalStep = Failure | Done | Step Eval
  deriving Show
+type MatchResult = Either Eval [(Name, Exp)]
 type Env = [Decl]
 
-liftE :: (Exp -> Exp) -> Eval -> Eval
-liftE f (Eval e) = Eval (f e)
+liftE :: (Exp -> Exp) -> EvalStep -> EvalStep
+liftE f (Step (Eval e)) = Step (Eval (f e))
 liftE _ e = e
 
-orE :: Eval -> Eval -> Eval
-orE r@(Eval _) _ = r
-orE _ r@(Eval _) = r
+orE :: EvalStep -> EvalStep -> EvalStep
+orE r@(Step _) _ = r
+orE _ r@(Step _) = r
 orE r _ = r
 infixr 3 `orE`
 
 (|$|) = liftE
 infix 4 |$|
 
-stepeval :: Env -> Exp -> Eval
-stepeval v (Paren p) = stepeval v p
-stepeval _ (List (x:xs)) = Eval $
+yield :: Exp -> EvalStep
+yield = Step . Eval
+
+step :: Env -> Exp -> EvalStep
+step v (Paren p) = step v p
+step _ (List (x:xs)) = yield $
  InfixApp x (QConOp (Special Cons)) (List xs)
-stepeval _ (Lit (String (x:xs))) = Eval $
+step _ (Lit (String (x:xs))) = yield $
  InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
-stepeval v (Var n) = need v (fromQName n)
-stepeval v e@(InfixApp p o q) = case o of
+step v (Var n) = need v (fromQName n)
+step v e@(InfixApp p o q) = case o of
  QVarOp n -> magic v e `orE`
   (\f -> App (App f p) q) |$| need v (fromQName n)
- QConOp _ -> (\p' -> InfixApp p' o q) |$| stepeval v p `orE`
-  InfixApp p o |$| stepeval v q
-stepeval v e@(App f x) = magic v e `orE` case f of
- Paren p -> stepeval v (App p x)
+ QConOp _ -> (\p' -> InfixApp p' o q) |$| step v p `orE`
+  InfixApp p o |$| step v q
+step v e@(App f x) = magic v e `orE` case f of
+ Paren p -> step v (App p x)
  Lambda _ [] _ -> error "Lambda with no patterns?"
- Lambda s ps@(p:qs) e -> case patternMatch' v p x of
-  NoMatch -> NoEval
-  Force -> App (Paren f) |$| stepeval v x
-  Match ms -> case qs of
-   [] -> Eval $ applyMatches ms e
+ Lambda s ps@(p:qs) e -> case patternMatch v p x of
+  Nothing -> Failure
+  Just (Left r) -> App (Lambda s ps e) |$| Step r
+  Just (Right ms) -> case qs of
+   [] -> yield $ applyMatches ms e
    qs
-    | anywhere (`elem` newNames) qs -> Eval $ App (Paren newLambda) x
-    | otherwise -> Eval . Paren . Lambda s qs $ applyMatches ms e
+    | anywhere (`elem` newNames) qs -> yield $ App newLambda x
+    | otherwise -> yield . Lambda s qs $ applyMatches ms e
     where newLambda = Lambda s (fixNames ps) (fixNames e)
           fixNames x = everything (.) (mkQ id (rename <*> newName)) ps x
           rename n n' = everywhereBut (shadows n) (mkT $ renameOne n n')
@@ -106,57 +109,59 @@ stepeval v e@(App f x) = magic v e `orE` case f of
           newNames =
            Set.toList . foldr (Set.union . Set.fromList) Set.empty .
            map (freeNames . snd) $ ms
- _ -> case stepeval v f of
-  Eval g -> Eval $ App g x
-  Done -> App f |$| stepeval v x
+ _ -> case step v f of
+  Step (Eval g) -> yield $ App g x
+  Done -> App f |$| step v x
   r -> r
-stepeval _ (Case _ []) = error "Case with no branches?"
-stepeval v (Case e alts@(Alt l p a (BDecls []) : as)) =
- case patternMatch' v p e of
-  Match rs -> case a of
-   UnGuardedAlt x -> Eval (applyMatches rs x)
+step _ (Case _ []) = error "Case with no branches?"
+step v (Case e alts@(Alt l p a (BDecls []) : as)) =
+ case patternMatch v p e of
+  Just (Right rs) -> case a of
+   UnGuardedAlt x -> yield (applyMatches rs x)
    GuardedAlts (GuardedAlt m ss x : gs) -> case ss of
     [] -> error "GuardedAlt with no body?"
     [Qualifier (Con (UnQual (Ident s)))]
-     | s == "True" -> Eval (applyMatches rs x)
+     | s == "True" -> yield (applyMatches rs x)
      | s == "False" -> if null gs
        -- no more guards, drop this alt
-       then if not (null as) then Eval $ Case e as else NoEval
+       then if not (null as) then yield $ Case e as else Failure
        -- drop this guard and move to the next
-       else Eval $ mkCase (GuardedAlts gs)
-     | otherwise -> NoEval
-    [Qualifier q] -> mkCase . newAlt |$| stepeval v q
+       else yield $ mkCase (GuardedAlts gs)
+     | otherwise -> Failure
+    [Qualifier q] -> mkCase . newAlt |$| step v q
     a -> todo a
     where newAlt q = GuardedAlts (GuardedAlt m [Qualifier q] x : gs)
           mkCase a = Case e (Alt l p a (BDecls []) : as)
    GuardedAlts [] -> error "Case branch with no expression?"
-  Force -> Case \/ alts |$| stepeval v e
-  NoMatch
-   | null as -> NoEval
-   | otherwise -> Eval (Case e as)
-stepeval _ e@(Case _ _) = todo e
-stepeval _ (Let (BDecls []) e) = Eval e
-stepeval v (Let (BDecls bs) e) = case stepeval (bs ++ v) e of
-  Eval e' -> Eval $ newLet e' bs
-  r@(EnvEval e') -> maybe r (Eval . newLet e) $ updateBind e' bs
+  Just (Left e) -> case e of
+   Eval e' -> yield $ Case e' alts
+   r -> Step r
+  Nothing
+   | null as -> Failure
+   | otherwise -> yield $ Case e as
+step _ e@(Case _ _) = todo e
+step _ (Let (BDecls []) e) = yield e
+step v (Let (BDecls bs) e) = case step (bs ++ v) e of
+  Step (Eval e') -> yield $ newLet e' bs
+  Step r@(EnvEval e') -> Step $ maybe r (Eval . newLet e) $ updateBind e' bs
   r -> r
  where newLet e bs = case tidyBinds e bs of
         [] -> e
         bs' -> Let (BDecls bs') e
-stepeval _ (Lit _) = Done
-stepeval _ (List []) = Done
-stepeval _ e = todo e
+step _ (Lit _) = Done
+step _ (List []) = Done
+step _ e = todo e
 
 -- this is unpleasant
-magic :: Env -> Exp -> Eval
+magic :: Env -> Exp -> EvalStep
 magic v (App (App (Var p@(UnQual (Symbol "+"))) m) n) =
  case (m, n) of
-  (Lit (Int x), Lit (Int y)) -> Eval . Lit . Int $ x + y
-  (Lit (Frac x), Lit (Frac y)) -> Eval . Lit . Frac $ x + y
-  (Lit _, e) -> InfixApp m (QVarOp p) |$| stepeval v e
-  (e, _) -> (\e' -> InfixApp e' (QVarOp p) n) |$| stepeval v e
+  (Lit (Int x), Lit (Int y)) -> yield . Lit . Int $ x + y
+  (Lit (Frac x), Lit (Frac y)) -> yield . Lit . Frac $ x + y
+  (Lit _, e) -> InfixApp m (QVarOp p) |$| step v e
+  (e, _) -> (\e' -> InfixApp e' (QVarOp p) n) |$| step v e
 magic v (InfixApp p (QVarOp o) q) = magic v (App (App (Var o) p) q)
-magic _ _ = NoEval
+magic _ _ = Done
 
 tidyBinds :: Exp -> Env -> Env
 tidyBinds e v = go [e] v
@@ -176,13 +181,14 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
        match _ = False
 updateBind l _ = todo l
 
-need :: Env -> Name -> Eval
+need :: Env -> Name -> EvalStep
 need v n = case envLookup v n of
- Nothing -> NoEval
+ Nothing -> Failure
  Just (PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
-  case stepeval v e of
-   Done -> Eval e
-   Eval e' -> EnvEval (PatBind s (PVar n) t (UnGuardedRhs e') (BDecls []))
+  case step v e of
+   Done -> yield e
+   Step (Eval e') -> Step . EnvEval $
+    PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
    f -> f
  Just l -> todo l
 
@@ -213,52 +219,54 @@ freeNames e = filter (isFreeIn \/ e) . Set.toList . Set.fromList $
  where isName :: Name -> Bool
        isName = const True
 
-instance Monoid PatternMatch where
- mempty = Match []
- mappend _ NoMatch = NoMatch
- mappend _ Force = Force
- mappend NoMatch _ = NoMatch
- mappend Force _ = Force
- mappend (Match f) (Match g) = Match (f ++ g)
+-- orphan oh dear
+instance (Monoid r) => Monoid (Either e r) where
+ mempty = Right mempty
+ mappend l@(Left _) _ = l
+ mappend _ l@(Left _) = l
+ mappend (Right x) (Right y) = Right (mappend x y)
 
-patternMatch' :: Env -> Pat -> Exp -> PatternMatch
-patternMatch' v p = patternMatch p . applyMatches (map mkMatch v)
- where mkMatch (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])) = (n, e)
-       mkMatch l = todo l
+peval :: EvalStep -> Maybe MatchResult
+peval (Step e) = Just $ Left e
+peval _ = Nothing
 
-patternMatch :: Pat -> Exp -> PatternMatch
+pmatch :: [(Name, Exp)] -> Maybe MatchResult
+pmatch = Just . Right
+
+patternMatch :: Env -> Pat -> Exp -> Maybe MatchResult
 -- Strip parentheses
-patternMatch (PParen p) x = patternMatch p x
-patternMatch p (Paren x) = patternMatch p x
+patternMatch v (PParen p) x = patternMatch v p x
+patternMatch v p (Paren x) = patternMatch v p x
 -- Translate infix cases to prefix cases for simplicity
-patternMatch (PInfixApp p q r) s = patternMatch (PApp q [p, r]) s
-patternMatch p (InfixApp a n b) = case n of
- QVarOp _ -> Force
- QConOp q -> patternMatch p (App (App (Con q) a) b)
+-- I need to stop doing this at some point
+patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s
+patternMatch v p (InfixApp a n b) = case n of
+ QVarOp n -> peval $ need v (fromQName n)
+ QConOp q -> patternMatch v p (App (App (Con q) a) b)
 -- Patterns that always match
-patternMatch (PWildCard) _ = Match []
-patternMatch (PVar n) x = Match [(n, x)]
+patternMatch _ (PWildCard) _ = pmatch []
+patternMatch _ (PVar n) x = pmatch [(n, x)]
 -- Literal match
-patternMatch (PLit p) (Lit q)
- | p == q = Match []
- | otherwise = NoMatch
-patternMatch (PLit _) _ = Force
-patternMatch (PList []) x = case argList x of
- [List []] -> Match []
- [List _] -> NoMatch
- Con _ : _ -> NoMatch
- _ -> Force
+patternMatch _ (PLit p) (Lit q)
+ | p == q = pmatch []
+ | otherwise = Nothing
+patternMatch v (PLit _) s = peval $ step v s
+patternMatch v (PList []) x = case argList x of
+ [List []] -> pmatch []
+ [List _] -> Nothing
+ Con _ : _ -> Nothing
+ _ -> peval $ step v x
 -- Lists of patterns
-patternMatch (PList (p:ps)) q =
- patternMatch (PApp (Special Cons) [p, PList ps]) q
+patternMatch v (PList (p:ps)) q =
+ patternMatch v (PApp (Special Cons) [p, PList ps]) q
 -- Constructor matches
-patternMatch (PApp n ps) q = case argList q of
+patternMatch v (PApp n ps) q = case argList q of
  (Con c:xs)
-  | c == n -> mconcat (zipWith patternMatch ps xs)
-  | otherwise -> NoMatch
- _ -> Force
+  | c == n -> mconcat (zipWith (patternMatch v) ps xs)
+  | otherwise -> Nothing
+ _ -> peval $ step v q
 -- Fallback case
-patternMatch p q = todo (p, q)
+patternMatch _ p q = todo (p, q)
 
 argList :: Exp -> [Exp]
 argList = reverse . atl

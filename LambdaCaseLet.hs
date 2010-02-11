@@ -4,7 +4,7 @@ module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 import Control.Applicative ((<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
-import Data.List (find, partition, unfoldr)
+import Data.List (delete, partition, unfoldr)
 import Data.Generics (GenericQ,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
 import Data.Monoid (Monoid, mappend, mempty, mconcat)
@@ -185,8 +185,8 @@ updateBind l _ = todo l
 need :: Env -> Name -> EvalStep
 need v n = case envLookup v n of
  Nothing -> Failure
- Just (PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
-  case step v e of
+ Just b@(PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
+  case step (delete b v) e of
    Done -> yield e
    Step (Eval e') -> Step . EnvEval $
     PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])

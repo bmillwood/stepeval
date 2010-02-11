@@ -5,9 +5,8 @@ import Control.Applicative ((<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, partition, unfoldr)
-import Data.Generics (GenericQ,
- everything, everywhereBut, extQ, listify, mkQ, mkT)
-import Data.Monoid (Monoid, mappend, mempty, mconcat)
+import Data.Generics (GenericQ, GenericT,
+ everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
 import qualified Data.Set as Set (empty, fromList, toList, union)
 import Language.Haskell.Exts (
  Alt (Alt),
@@ -202,9 +201,9 @@ fromQName :: QName -> Name
 fromQName (UnQual n) = n
 fromQName q = error $ "fromQName: " ++ show q
 
-applyMatches :: [(Name, Exp)] -> Exp -> Exp
+applyMatches :: [(Name, Exp)] -> GenericT
 applyMatches [] e = e
-applyMatches ms e = gmapT (mkT $ applyMatches notShadowed) (replaceOne e)
+applyMatches ms e = gmapT (applyMatches notShadowed `extT` replaceOne) e
  where replaceOne e@(Var (UnQual m)) = case lookup m ms of
         Nothing -> e
         Just e' -> replaceOne e'

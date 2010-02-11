@@ -220,13 +220,6 @@ freeNames e = filter (isFreeIn \/ e) . Set.toList . Set.fromList $
  where isName :: Name -> Bool
        isName = const True
 
--- orphan oh dear
-instance (Monoid r) => Monoid (Either e r) where
- mempty = Right mempty
- mappend l@(Left _) _ = l
- mappend _ l@(Left _) = l
- mappend (Right x) (Right y) = Right (mappend x y)
-
 peval :: EvalStep -> Maybe MatchResult
 peval (Step e) = Just $ Left e
 peval _ = Nothing
@@ -263,8 +256,15 @@ patternMatch v (PList (p:ps)) q =
 -- Constructor matches
 patternMatch v (PApp n ps) q = case argList q of
  (Con c:xs)
-  | c == n -> mconcat (zipWith (patternMatch v) ps xs)
+  | c == n -> matches ps xs
   | otherwise -> Nothing
+  where matches [] [] = pmatch []
+        matches (p:ps) (x:xs) = case (patternMatch v p x, matches ps xs) of
+         (Nothing, _) -> Nothing
+         (r@(Just (Left _)), _) -> r
+         (Just (Right xs), Just (Right ys)) -> Just (Right (xs ++ ys))
+         (_, r) -> r
+        matches _ _ = Nothing
  _ -> peval $ step v q
 -- Fallback case
 patternMatch _ p q = todo (p, q)

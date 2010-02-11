@@ -240,6 +240,11 @@ patternMatch v p (InfixApp a n b) = case n of
 -- Patterns that always match
 patternMatch _ (PWildCard) _ = pmatch []
 patternMatch _ (PVar n) x = pmatch [(n, x)]
+-- Variables will need to be substituted if they still haven't matched
+patternMatch v p (Var q) = case envLookup v (fromQName q) of
+ Nothing -> Nothing
+ Just (PatBind _ _ _ (UnGuardedRhs e) _) -> patternMatch v p e
+ Just l -> todo l
 -- Literal match
 patternMatch _ (PLit p) (Lit q)
  | p == q = pmatch []

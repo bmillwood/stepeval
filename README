@@ -2,9 +2,10 @@ Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
 
 TODO:
 
-Pattern matching needs to relay more information than "Force" because for
-compound patterns it may be far from obvious what needs forcing.
-
-Pattern matching returns fully-substituted targets in the bind which is
-terrible for all sorts of reasons.
+Pattern matching can see deep into bindings, which may make how it found
+a match non-obvious. For example:
+let x = 1 : x in
+  case x of
+      _ : _ : _ : _ : _ -> True
+matches immediately.
 

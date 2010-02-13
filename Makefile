@@ -2,5 +2,7 @@ default: dist
 	cabal build
 configure dist: $(wildcard Setup.hs *.cabal)
 	cabal configure
+clean:
+	cabal $@
 
-.PHONY: default configure
+.PHONY: clean default configure

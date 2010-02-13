@@ -5,6 +5,7 @@ import Control.Applicative ((<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, find, partition, unfoldr)
+import Data.Maybe (fromMaybe)
 import Data.Generics (GenericQ, GenericT,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
 import qualified Data.Set as Set (empty, fromList, toList, union)
@@ -211,8 +212,7 @@ applyMatches :: [(Name, Exp)] -> GenericT
 applyMatches [] x = x
 applyMatches ms x = gmapT (applyMatches notShadowed) subst
  where subst = mkT replaceOne x
-       -- I'm not really sure if replaceOne should recurse here
-       replaceOne e@(Var (UnQual m)) = maybe e replaceOne $ lookup m ms
+       replaceOne e@(Var (UnQual m)) = fromMaybe e $ lookup m ms
        replaceOne e = e
        notShadowed = filter (not . flip shadows subst . fst) ms
 

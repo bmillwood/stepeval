@@ -6,7 +6,7 @@ import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, partition, unfoldr)
 import Data.Generics (GenericQ, GenericT,
- everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
+ everything, everywhereBut, extQ, listify, mkQ, mkT)
 import qualified Data.Set as Set (empty, fromList, toList, union)
 import Language.Haskell.Exts (
  Alt (Alt),

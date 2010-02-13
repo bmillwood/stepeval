@@ -12,7 +12,12 @@ import Prelude hiding (catch)
 import System.Environment
 import System.IO
 
-main = cliMain
+main :: IO ()
+main = do
+ e <- lookup "QUERY_STRING" <$> getEnvironment
+ case e of
+  Nothing -> cliMain
+  Just s -> cgiMain s
 
 cliMain :: IO ()
 cliMain = do
@@ -22,13 +27,16 @@ cliMain = do
   ParseOk e -> forM_ (itereval e) $
    (>> (hFlush stdout >> getLine)) . putStr . prettyPrint
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
+ where getLines :: IO [String]
+       getLines = do
+        line <- getLine
+        if null line then return [] else (line :) <$> getLines
 
-cgiMain :: IO ()
-cgiMain = do
+cgiMain :: String -> IO ()
+cgiMain qstr = do
  putStr "Content-Type: text/plain; charset=UTF-8\n\n"
- exp <- unescape . tail . dropWhile (/= '=') <$> getEnv "QUERY_STRING"
  myThreadId >>= forkIO . (threadDelay 500000 >>) . killThread
- case parseExp exp of
+ case parseExp (unescape . tail . dropWhile (/= '=') $ qstr) of
   ParseOk e -> printeval e `catch` (\e -> print (e :: ErrorCall))
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
  where unescape ('+':cs) = ' ':unescape cs
@@ -37,9 +45,4 @@ cgiMain = do
         _ -> error $ "Failed to parse percent escape: " ++ [a, b]
        unescape (c:cs) = c:unescape cs
        unescape [] = ""
-
-getLines :: IO [String]
-getLines = do
- line <- getLine
- if null line then return [] else (line :) <$> getLines
 

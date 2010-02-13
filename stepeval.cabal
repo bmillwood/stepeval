@@ -1,0 +1,17 @@
+Cabal-Version: >= 1.2
+Name:          stepeval
+Version:       0.1
+Synopsis:      A tool for displaying the evaluation of a Haskell expression
+Author:        Ben Millwood <haskell@benmachine.co.uk>
+Copyright:     2010 Ben Millwood
+License:       BSD3
+Stability:     None
+Build-Type:    Simple
+
+Executable stepeval
+ Build-Depends:  base == 4.*, containers, haskell-src-exts, syb
+ GHC-Options:    -Wall
+ Hs-Source-Dirs: src
+ Main-Is:        Main.hs
+ Other-Modules:  LambdaCaseLet
+

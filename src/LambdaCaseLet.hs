@@ -12,7 +12,8 @@ import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
  Decl (PatBind),
- Exp (App, Case, Con, InfixApp, Lambda, Let, List, Lit, Paren, Var),
+ Exp (App, Case, Con, InfixApp, Lambda, LeftSection,
+  Let, List, Lit, Paren, RightSection, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
  Literal (Char, Frac, Int, String),
@@ -108,6 +109,8 @@ step v e@(App f x) = magic v e `orE` case f of
           newNames =
            Set.toList . foldr (Set.union . Set.fromList) Set.empty .
            map (freeNames . snd) $ ms
+ LeftSection e o -> yield $ InfixApp e o x
+ RightSection o e -> yield $ InfixApp x o e
  _ -> case step v f of
   Step (Eval g) -> yield $ App g x
   Done -> App f |$| step v x
@@ -147,6 +150,8 @@ step v (Let (BDecls bs) e) = case step (bs ++ v) e of
  where newLet e bs = case tidyBinds e bs of
         [] -> e
         bs' -> Let (BDecls bs') e
+step _ (LeftSection _ _) = Done
+step _ (RightSection _ _) = Done
 step _ (Lit _) = Done
 step _ (List []) = Done
 step _ (Con _) = Done

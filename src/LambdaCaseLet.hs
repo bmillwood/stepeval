@@ -4,7 +4,7 @@ module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 import Control.Applicative ((<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
-import Data.List (delete, partition, unfoldr)
+import Data.List (delete, find, partition, unfoldr)
 import Data.Generics (GenericQ, GenericT,
  everything, everywhereBut, extQ, listify, mkQ, mkT)
 import qualified Data.Set as Set (empty, fromList, toList, union)

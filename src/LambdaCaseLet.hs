@@ -7,7 +7,7 @@ import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
 import Data.Generics (GenericQ, GenericT,
- everything, everywhereBut, extQ, listify, mkQ, mkT)
+ everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
 import qualified Data.Set as Set (empty, fromList, toList, union)
 import Language.Haskell.Exts (
  Alt (Alt),
@@ -210,11 +210,11 @@ fromQName q = error $ "fromQName: " ++ show q
 
 applyMatches :: [(Name, Exp)] -> GenericT
 applyMatches [] x = x
-applyMatches ms x = gmapT (applyMatches notShadowed) subst
- where subst = mkT replaceOne x
-       replaceOne e@(Var (UnQual m)) = fromMaybe e $ lookup m ms
-       replaceOne e = e
-       notShadowed = filter (not . flip shadows subst . fst) ms
+applyMatches ms x = recurse `extT` replaceOne $ x
+ where replaceOne e@(Var (UnQual m)) = fromMaybe e $ lookup m ms
+       replaceOne e = recurse e
+       recurse e = gmapT (applyMatches (notShadowed e)) e
+       notShadowed e = filter (not . flip shadows e . fst) ms
 
 isFreeIn :: Name -> Exp -> Bool
 isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))

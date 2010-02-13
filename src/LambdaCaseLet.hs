@@ -236,12 +236,6 @@ patternMatch :: Env -> Pat -> Exp -> Maybe MatchResult
 -- Strip parentheses
 patternMatch v (PParen p) x = patternMatch v p x
 patternMatch v p (Paren x) = patternMatch v p x
--- Translate infix cases to prefix cases for simplicity
--- I need to stop doing this at some point
-patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s
-patternMatch v p (InfixApp a n b) = case n of
- QVarOp n -> peval $ need v (fromQName n)
- QConOp q -> patternMatch v p (App (App (Con q) a) b)
 -- Patterns that always match
 patternMatch _ (PWildCard) _ = pmatch []
 patternMatch _ (PVar n) x = pmatch [(n, x)]
@@ -250,6 +244,12 @@ patternMatch v p (Var q) = case envLookup v (fromQName q) of
  Nothing -> Nothing
  Just (PatBind _ _ _ (UnGuardedRhs e) _) -> patternMatch v p e
  Just l -> todo l
+-- Translate infix cases to prefix cases for simplicity
+-- I need to stop doing this at some point
+patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s
+patternMatch v p (InfixApp a n b) = case n of
+ QVarOp n -> peval $ need v (fromQName n)
+ QConOp q -> patternMatch v p (App (App (Con q) a) b)
 -- Literal match
 patternMatch _ (PLit p) (Lit q)
  | p == q = pmatch []

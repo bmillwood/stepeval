@@ -6,9 +6,10 @@ import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
+import Data.Monoid (mconcat)
 import Data.Generics (GenericQ, GenericT,
  everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
-import qualified Data.Set as Set (empty, fromList, toList, union)
+import qualified Data.Set as Set (fromList, toList)
 import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
@@ -107,9 +108,8 @@ step v e@(App f x) = magic v e `orE` case f of
            | conflicts m = newName . Symbol $ n ++ ['.']
            | otherwise = m
           conflicts n = anywhere (== n) qs || elem n newNames
-          newNames =
-           Set.toList . foldr (Set.union . Set.fromList) Set.empty .
-           map (freeNames . snd) $ ms
+          newNames = Set.toList . mconcat .
+           map (Set.fromList . freeNames . snd) $ ms
  LeftSection e o -> yield $ InfixApp e o x
  RightSection o e -> yield $ InfixApp x o e
  _ -> case step v f of

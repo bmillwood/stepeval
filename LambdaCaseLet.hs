@@ -204,10 +204,12 @@ fromQName q = error $ "fromQName: " ++ show q
 
 applyMatches :: [(Name, Exp)] -> GenericT
 applyMatches [] x = x
-applyMatches ms x = gmapT (applyMatches notShadowed) (mkT replaceOne x)
- where replaceOne e@(Var (UnQual m)) = maybe e replaceOne $ lookup m ms
+applyMatches ms x = gmapT (applyMatches notShadowed) subst
+ where subst = mkT replaceOne x
+       -- I'm not really sure if replaceOne should recurse here
+       replaceOne e@(Var (UnQual m)) = maybe e replaceOne $ lookup m ms
        replaceOne e = e
-       notShadowed = filter (not . flip shadows x . fst) ms
+       notShadowed = filter (not . flip shadows subst . fst) ms
 
 isFreeIn :: Name -> Exp -> Bool
 isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))

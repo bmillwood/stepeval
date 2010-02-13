@@ -203,13 +203,11 @@ fromQName (UnQual n) = n
 fromQName q = error $ "fromQName: " ++ show q
 
 applyMatches :: [(Name, Exp)] -> GenericT
-applyMatches [] e = e
-applyMatches ms e = gmapT (applyMatches notShadowed `extT` replaceOne) e
- where replaceOne e@(Var (UnQual m)) = case lookup m ms of
-        Nothing -> e
-        Just e' -> replaceOne e'
+applyMatches [] x = x
+applyMatches ms x = gmapT (applyMatches notShadowed) (mkT replaceOne x)
+ where replaceOne e@(Var (UnQual m)) = maybe e replaceOne $ lookup m ms
        replaceOne e = e
-       notShadowed = filter (not . flip shadows e . fst) ms
+       notShadowed = filter (not . flip shadows x . fst) ms
 
 isFreeIn :: Name -> Exp -> Bool
 isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))

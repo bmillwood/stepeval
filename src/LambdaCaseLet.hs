@@ -159,16 +159,36 @@ step _ (Con _) = Done
 step _ (Lambda _ _ _) = Done
 step _ e = todo e
 
--- this is unpleasant
+-- Black-box all "primitive" operations like arithmetic
+-- This is obviously incomplete but it's not high-priority
 magic :: Env -> Exp -> EvalStep
-magic v (App (App (Var p@(UnQual (Symbol "+"))) m) n) =
- case (m, n) of
-  (Lit (Int x), Lit (Int y)) -> yield . Lit . Int $ x + y
-  (Lit (Frac x), Lit (Frac y)) -> yield . Lit . Frac $ x + y
-  (Lit _, e) -> InfixApp m (QVarOp p) |$| step v e
-  (e, _) -> (\e' -> InfixApp e' (QVarOp p) n) |$| step v e
-magic v (InfixApp p (QVarOp o) q) = magic v (App (App (Var o) p) q)
-magic _ _ = Done
+magic v e = case e of
+ App (App (Var p) x) y -> rhs (fromQName p) x y
+ InfixApp x (QVarOp o) y -> rhs (fromQName o) x y
+ _ -> Done
+ where rhs p@(Symbol s) m n = case (m, n) of
+        -- whee implicit coercion
+        (Lit (Int x), Lit (Int y)) -> op s Int x y
+        (Lit (Frac x), Lit (Int y)) -> op s Frac x (toRational y)
+        (Lit (Int x), Lit (Frac y)) -> op s Frac (toRational x) y
+        (Lit (Frac x), Lit (Frac y)) -> op s Frac x y
+        (Lit _, e) -> InfixApp m (QVarOp (UnQual p)) |$| step v e
+        (e, _) -> (\e' -> InfixApp e' (QVarOp (UnQual p)) n) |$| step v e
+       rhs _ _ _ = Done
+       op s c x y = case s of
+        "+" -> num $ x + y
+        "*" -> num $ x * y
+        "-" -> num $ x - y
+        "<" -> bool $ x < y
+        "<=" -> bool $ x <= y
+        ">" -> bool $ x > y
+        ">=" -> bool $ x >= y
+        "==" -> bool $ x == y
+        "/=" -> bool $ x /= y
+        _ -> Done
+        where num x = yield . Lit . c $ x
+              bool b = yield . Con . UnQual . Ident $
+               if b then "True" else "False"
 
 tidyBinds :: Exp -> Env -> Env
 tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v

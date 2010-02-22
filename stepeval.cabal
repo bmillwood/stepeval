@@ -9,10 +9,14 @@ Stability:     None
 Build-Type:    Simple
 
 Executable stepeval
- Build-Depends:  base > 4 && < 4.3, containers < 0.4, syb < 0.2,
+ Build-Depends:  base >= 4 && < 4.3, containers < 0.4, syb < 0.2,
                   haskell-src-exts < 1.9
  GHC-Options:    -W
  Hs-Source-Dirs: src
  Main-Is:        Main.hs
  Other-Modules:  LambdaCaseLet
+
+Source-Repository head
+ type:     git
+ location: git://github.com/benmachine/stepeval.git
 

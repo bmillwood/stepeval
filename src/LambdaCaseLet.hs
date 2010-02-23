@@ -229,11 +229,13 @@ fromQName (UnQual n) = n
 fromQName q = error $ "fromQName: " ++ show q
 
 applyMatches :: [(Name, Exp)] -> GenericT
-applyMatches [] x = x
+-- If it's not an Exp, just recurse into it, otherwise try to substitute...
 applyMatches ms x = recurse `extT` replaceOne $ x
  where replaceOne e@(Var (UnQual m)) = fromMaybe e $ lookup m ms
+       -- ...or else recurse anyway
        replaceOne e = recurse e
        recurse e = gmapT (applyMatches (notShadowed e)) e
+       -- Parameter here might be redundant - it's only called on x anyway
        notShadowed e = filter (not . flip shadows e . fst) ms
 
 isFreeIn :: Name -> Exp -> Bool

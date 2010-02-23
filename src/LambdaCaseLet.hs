@@ -210,7 +210,7 @@ updateBind l _ = todo l
 
 need :: Env -> Name -> EvalStep
 need v n = case envLookup v n of
- Nothing -> Failure
+ Nothing -> Done
  Just b@(PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
   case step (delete b v) e of
    Done -> yield e

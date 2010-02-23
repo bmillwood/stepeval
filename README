@@ -2,6 +2,16 @@ Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
 
 TODO:
 
+FunBind decls
+
+A detached larger environment so that an actually decent library can be
+ticking away behind the scenes. This includes better support for primitive
+operations like arithmetic.
+
+Polymorphism?
+
+FIXME:
+
 Pattern matching can see deep into bindings, which may make how it found
 a match non-obvious. For example:
 let x = 1 : x in

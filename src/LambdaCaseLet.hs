@@ -1,12 +1,11 @@
 {-# LANGUAGE RankNTypes #-}
 module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 
-import Control.Applicative ((<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
-import Data.Monoid (mconcat)
+import Data.Monoid (mconcat, Endo (Endo, appEndo))
 import Data.Generics (GenericQ, GenericT,
  everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
 import qualified Data.Set as Set (fromList, toList)
@@ -93,23 +92,21 @@ step v e@(App f x) = magic v e `orE` case f of
   Just (Right ms) -> case qs of
    [] -> yield $ applyMatches ms e
    qs
-    | anywhere (`elem` newNames) qs -> yield $ App newLambda x
+    | anywhere (`elem` mnames) qs -> yield $ App newLambda x
     | otherwise -> yield . Lambda s qs $ applyMatches ms e
     where newLambda = Lambda s (fixNames ps) (fixNames e)
-          fixNames x = everything (.) (mkQ id (rename <*> newName)) ps x
-          rename n n' = everywhereBut (shadows n) (mkT $ renameOne n n')
-          renameOne n n' x
-           | x == n = n'
-           | otherwise = x
-          newName m@(Ident n)
-           | conflicts m = newName . Ident $ n ++ ['\'']
-           | otherwise = m
-          newName m@(Symbol n)
-           | conflicts m = newName . Symbol $ n ++ ['.']
-           | otherwise = m
-          conflicts n = anywhere (== n) qs || elem n newNames
-          newNames = Set.toList . mconcat .
-           map (Set.fromList . freeNames . snd) $ ms
+          fixNames :: GenericT -- the DMR strikes again
+          -- The first pattern in the lambda is about to be gobbled. Rename
+          -- every other pattern that will conflict with any of the names
+          -- introduced by the pattern match.
+          -- We avoid names already existing in the lambda, except for the
+          -- one we're in the process of renaming (that would be silly)
+          fixNames = appEndo . mconcat $
+           map (\n -> Endo $ alpha n (delete n lnames ++ mnames))
+           (freeNames qs)
+          lnames = freeNames ps ++ freeNames e
+          mnames = Set.toList . mconcat . map Set.fromList $
+           map (freeNames . snd) ms
  LeftSection e o -> yield $ InfixApp e o x
  RightSection o e -> yield $ InfixApp x o e
  _ -> case step v f of
@@ -238,10 +235,23 @@ applyMatches ms x = recurse `extT` replaceOne $ x
        -- Parameter here might be redundant - it's only called on x anyway
        notShadowed e = filter (not . flip shadows e . fst) ms
 
-isFreeIn :: Name -> Exp -> Bool
+alpha :: Name -> [Name] -> GenericT
+alpha n avoid = case find (`notElem` avoid)
+ (n : map (\i -> withName (++ show i) n) [1 ..]) of
+  Just m -> everywhereBut (shadows n) (mkT $ replaceOne n m)
+  Nothing -> error "end of an infinite list?"
+ where replaceOne :: Name -> Name -> Name -> Name
+       replaceOne n m r | n == r = m
+       replaceOne _ _ r = r
+
+withName :: (String -> String) -> Name -> Name
+withName f (Ident n) = Ident (f n)
+withName f (Symbol n) = Symbol (f n)
+
+isFreeIn :: Name -> GenericQ Bool
 isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))
 
-freeNames :: Exp -> [Name]
+freeNames :: GenericQ [Name]
 freeNames e = filter (isFreeIn \/ e) . Set.toList . Set.fromList $
  listify (mkQ False isName) e
  where isName :: Name -> Bool

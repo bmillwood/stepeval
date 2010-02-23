@@ -2,10 +2,6 @@ Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
 
 TODO:
 
-The measures to avoid name conflicts are not perfect. For example:
-(\x x' -> x x') (x' x)
-renames both lambda patterns to x''. Whoops.
-
 Pattern matching can see deep into bindings, which may make how it found
 a match non-obvious. For example:
 let x = 1 : x in

@@ -12,6 +12,9 @@ Polymorphism?
 
 FIXME:
 
+Alpha conversion is necessary in let-bindings sometimes. It's not done at
+all at the moment.
+
 Pattern matching can see deep into bindings, which may make how it found
 a match non-obvious. For example:
 let x = 1 : x in

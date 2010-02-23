@@ -19,3 +19,7 @@ let x = 1 : x in
       _ : _ : _ : _ : _ -> True
 matches immediately.
 
+Everywhere in the program I have emphasised correctness and simplicity of
+code over performance. In a lot of small ways and a few big ones the
+efficiency of the algorithms involved is much poorer than it needs to be.
+

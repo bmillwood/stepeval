@@ -13,7 +13,7 @@ import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
  Decl (PatBind),
- Exp (App, Case, Con, InfixApp, Lambda, LeftSection,
+ Exp (App, Case, Con, If, InfixApp, Lambda, LeftSection,
   Let, List, Lit, Paren, RightSection, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
@@ -78,6 +78,11 @@ step _ (List (x:xs)) = yield $
 step _ (Lit (String (x:xs))) = yield $
  InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
 step v (Var n) = need v (fromQName n)
+step _ (If (Con (UnQual (Ident i))) t f) = case i of
+ "True" -> yield t
+ "False" -> yield f
+ _ -> Failure
+step v (If e t f) = (\e -> If e t f) |$| step v e
 step v e@(InfixApp p o q) = case o of
  QVarOp n -> magic v e `orE`
   (\f -> App (App f p) q) |$| need v (fromQName n)

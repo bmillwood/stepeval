@@ -12,8 +12,7 @@ Polymorphism?
 
 FIXME:
 
-Alpha conversion is necessary in let-bindings sometimes. It's not done at
-all at the moment.
+Nested let-scopes just don't work at all.
 
 Pattern matching can see deep into bindings, which may make how it found
 a match non-obvious. For example:

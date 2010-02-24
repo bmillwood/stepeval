@@ -13,7 +13,7 @@ import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
  Decl (PatBind),
- Exp (App, Case, Con, If, InfixApp, Lambda, LeftSection,
+ Exp (App, Case, Con, Do, If, InfixApp, Lambda, LeftSection,
   Let, List, Lit, Paren, RightSection, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
@@ -24,7 +24,7 @@ import Language.Haskell.Exts (
  QOp (QConOp, QVarOp),
  Rhs (UnGuardedRhs),
  SpecialCon (Cons),
- Stmt (Qualifier),
+ Stmt (Generator, LetStmt, Qualifier),
  prettyPrint
  )
 
@@ -77,6 +77,17 @@ step _ (List (x:xs)) = yield $
  InfixApp x (QConOp (Special Cons)) (List xs)
 step _ (Lit (String (x:xs))) = yield $
  InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
+step _ (Do []) = error "Empty do?"
+step _ (Do [Qualifier e]) = yield e
+step _ (Do [e]) = error $
+ "Last statement in a do block must be an expression: " ++ show e
+step _ (Do (s:ss)) = case s of
+ Qualifier e -> yield $ InfixApp e (op ">>") (Do ss)
+ Generator s p e -> yield $ InfixApp e (op ">>=")
+  (Lambda s [p] (Do ss))
+ LetStmt bs -> yield $ Let bs (Do ss)
+ s -> todo s
+ where op = QVarOp . UnQual . Symbol
 step v (Var n) = need v (fromQName n)
 step _ (If (Con (UnQual (Ident i))) t f) = case i of
  "True" -> yield t

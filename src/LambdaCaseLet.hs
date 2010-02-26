@@ -28,8 +28,6 @@ import Language.Haskell.Exts (
  prettyPrint
  )
 
-(\/) = flip
-
 eval :: Exp -> Exp
 eval = last . itereval
 
@@ -268,7 +266,7 @@ isFreeIn :: Name -> GenericQ Bool
 isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))
 
 freeNames :: GenericQ [Name]
-freeNames e = filter (isFreeIn \/ e) . Set.toList . Set.fromList $
+freeNames e = filter (`isFreeIn` e) . Set.toList . Set.fromList $
  listify (mkQ False isName) e
  where isName :: Name -> Bool
        isName = const True

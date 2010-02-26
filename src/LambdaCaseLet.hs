@@ -263,7 +263,12 @@ withName f (Ident n) = Ident (f n)
 withName f (Symbol n) = Symbol (f n)
 
 isFreeIn :: Name -> GenericQ Bool
-isFreeIn n = anywhereBut (shadows n) (mkQ False (== n))
+isFreeIn n = anywhereBut (shadows n) (is n)
+ where is n@(Symbol s)
+        | s == ">>" || s == ">>=" = mkQ False (== n) `extQ` isDo
+       is n = mkQ False (== n)
+       isDo (Do _) = True
+       isDo _ = False
 
 freeNames :: GenericQ [Name]
 freeNames e = filter (`isFreeIn` e) . Set.toList . Set.fromList $

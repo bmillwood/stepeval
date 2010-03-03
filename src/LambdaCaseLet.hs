@@ -250,10 +250,11 @@ applyMatches ms x = recurse `extT` replaceOne $ x
        notShadowed e = filter (not . flip shadows e . fst) ms
 
 alpha :: Name -> [Name] -> GenericT
-alpha n avoid = case find (`notElem` avoid)
- (n : map (\i -> withName (++ show i) n) [1 ..]) of
-  Just m -> everywhereBut (shadows n) (mkT $ replaceOne n m)
-  Nothing -> error "end of an infinite list?"
+alpha n avoid =
+ -- note infinite list, so find cannot give Nothing
+ let Just m = find (`notElem` avoid)
+      (n : map (\i -> withName (++ show i) n) [1 ..])
+  in everywhereBut (shadows n) (mkT $ replaceOne n m)
  where replaceOne :: Name -> Name -> Name -> Name
        replaceOne n m r | n == r = m
        replaceOne _ _ r = r
@@ -352,7 +353,7 @@ anywhere p = everything (||) (mkQ False p)
 
 -- needs RankNTypes
 anywhereBut :: GenericQ Bool -> GenericQ Bool -> GenericQ Bool
-anywhereBut p q x = not (p x) && or (q x : gmapQ (anywhereBut p q) x)
+anywhereBut p q x = not (p x) && (q x || (or $ gmapQ (anywhereBut p q) x))
 
 todo :: (Show s) => s -> a
 todo = error . ("Not implemented: " ++) . show

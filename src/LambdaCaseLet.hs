@@ -1,4 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
 module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 
 import Control.Applicative ((<$>), (<*>))
@@ -293,7 +292,7 @@ withName f (Ident n) = Ident (f n)
 withName f (Symbol n) = Symbol (f n)
 
 isFreeIn :: Name -> GenericQ Bool
-isFreeIn n = anywhereBut (shadows n) (is n)
+isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (is n) x))
  where is n@(Symbol s)
         | s == ">>" || s == ">>=" = mkQ False (== n) `extQ` isDo
        is n = mkQ False (== n)
@@ -385,10 +384,6 @@ shadows n = mkQ False exprS `extQ` altS
 
 anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool
 anywhere p = everything (||) (mkQ False p)
-
--- needs RankNTypes
-anywhereBut :: GenericQ Bool -> GenericQ Bool -> GenericQ Bool
-anywhereBut p q x = not (p x) && (q x || (or $ gmapQ (anywhereBut p q) x))
 
 todo :: (Show s) => s -> a
 todo = error . ("Not implemented: " ++) . show

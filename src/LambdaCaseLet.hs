@@ -52,7 +52,8 @@ data Eval = EnvEval Decl | Eval Exp
 data EvalStep = Failure | Done | Step Eval
  deriving Show
 type MatchResult = Either Eval [(Name, Exp)]
-type Env = [Decl]
+type Scope = [Decl]
+type Env = [Scope]
 
 liftE :: (Exp -> Exp) -> EvalStep -> EvalStep
 liftE f (Step (Eval e)) = Step (Eval (f e))
@@ -156,7 +157,7 @@ step v (Case e alts@(Alt l p a (BDecls []) : as)) =
    | otherwise -> yield $ Case e as
 step _ e@(Case _ _) = todo e
 step _ (Let (BDecls []) e) = yield e
-step v (Let (BDecls bs) e) = case step (bs ++ v) e of
+step v (Let (BDecls bs) e) = case step (bs : v) e of
   Step (Eval e') -> yield $ newLet e' bs
   Step r@(EnvEval e') -> Step $ maybe r (Eval . newLet e) $ updateBind e' bs
   r -> r
@@ -207,7 +208,7 @@ magic v e = case e of
        bool op = mkOp (con . show) op
        mkOp f g m n = maybe Done (yield . f) $ g <$> unlit m <*> unlit n
 
-tidyBinds :: Exp -> Env -> Env
+tidyBinds :: Exp -> Scope -> Scope
 tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v
  where go es ds = let (ys, xs) = partition (usedIn es) ds
         in if null ys then [] else ys ++ go (concatMap exprs ys) xs
@@ -217,7 +218,21 @@ tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v
        exprs l = todo l
        usedIn es d = any (\n -> any (isFreeIn n) es) (binds d)
 
-updateBind :: Decl -> Env -> Maybe Env
+need :: Env -> Name -> EvalStep
+need v n = case envBreak match v of
+ (_, _, [], _) -> Done
+ (_, bs, c : cs, ds) -> case c of
+  PatBind s (PVar n) t (UnGuardedRhs e) (BDecls []) ->
+   case step ((bs ++ cs) : ds) e of
+    Done -> yield e
+    Step (Eval e') -> Step . EnvEval $
+     PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
+    f -> f
+  b -> todo b
+ where match (PatBind _ (PVar m) _ _ _) = m == n
+       match l = todo l
+
+updateBind :: Decl -> Scope -> Maybe Scope
 updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
  (_, []) -> Nothing
  (h, _ : t) -> Just $ h ++ p : t
@@ -225,21 +240,19 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
        match _ = False
 updateBind l _ = todo l
 
-need :: Env -> Name -> EvalStep
-need v n = case envLookup v n of
- Nothing -> Done
- Just b@(PatBind s (PVar n) t (UnGuardedRhs e) (BDecls [])) ->
-  case step (delete b v) e of
-   Done -> yield e
-   Step (Eval e') -> Step . EnvEval $
-    PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
-   f -> f
- Just l -> todo l
-
 envLookup :: Env -> Name -> Maybe Decl
-envLookup v n = find match v
+envLookup v n = case envBreak match v of
+ (_, _, [], _) -> Nothing
+ (_, _, c : _, _) -> Just c
  where match (PatBind _ (PVar m) _ _ _) = m == n
        match l = todo l
+
+envBreak :: (a -> Bool) -> [[a]] -> ([[a]], [a], [a], [[a]])
+envBreak _ [] = ([], [], [], [])
+envBreak p (x:xs) = case break p x of
+ (_, []) -> (x:as, bs, cs, ds)
+ (ys, zs) -> ([], ys, zs, xs)
+ where (as, bs, cs, ds) = envBreak p xs
 
 fromQName :: QName -> Name
 fromQName (UnQual n) = n

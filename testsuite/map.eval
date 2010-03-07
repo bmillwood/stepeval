@@ -1,0 +1,8 @@
+let foldr = \f z xs -> case xs of
+     [] -> z
+     y:ys -> f y (foldr f z ys)
+    (.) = \f g x -> f (g x)
+    map = \f -> foldr ((:) . f) []
+ in map (2 +) [3,4,5]
+
+(:) 5 ((:) 6 ((:) 7 []))

@@ -1,0 +1,10 @@
+let x = 1 : case x of
+     [a, b, c] -> [c, b, a]
+     _ -> []
+ in x
+
+let x = 1 : case x of _ -> [] in x
+
+let x = 1 : [] in x
+
+1 : []

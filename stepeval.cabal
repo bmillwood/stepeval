@@ -16,6 +16,19 @@ Executable stepeval
  Main-Is:        Main.hs
  Other-Modules:  LambdaCaseLet
 
+Flag Test
+ Description: Build the testing application
+ Default:     False
+
+Executable test
+ Main-Is: Test.hs
+
+ if flag(test)
+  Build-Depends:  base >= 4 && < 4.3, directory < 1.1, syb < 0.2
+  Hs-Source-Dirs: src testsuite
+ else
+  Buildable: False
+
 Source-Repository head
  type:     git
  location: git://github.com/benmachine/stepeval.git

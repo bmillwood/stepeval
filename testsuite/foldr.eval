@@ -1,0 +1,6 @@
+let foldr = \f z xs -> case xs of
+     [] -> z
+     x:xs -> f x (foldr f z xs)
+ in foldr (+) 0 [1,2,3,4,5]
+
+15

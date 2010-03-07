@@ -1,0 +1,7 @@
+let x = y in let y = 7 in (x, y)
+
+let x = y in let y1 = 7 in (x, y1)
+
+let y1 = 7 in (y, y1)
+
+(y, 7)

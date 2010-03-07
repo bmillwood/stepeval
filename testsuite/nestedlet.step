@@ -1,0 +1,5 @@
+let x = 4 in let y = x in y
+
+let y = 4 in y
+
+4

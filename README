@@ -4,6 +4,8 @@ TODO:
 
 FunBind decls
 
+The test suite could do with expansion
+
 A detached larger environment so that an actually decent library can be
 ticking away behind the scenes. This includes better support for primitive
 operations like arithmetic.

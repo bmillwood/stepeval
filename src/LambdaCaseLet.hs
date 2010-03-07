@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 
+import Control.Applicative ((<$>), (<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.List (delete, find, partition, unfoldr)
@@ -170,36 +171,41 @@ step _ (Con _) = Done
 step _ (Lambda _ _ _) = Done
 step _ e = todo e
 
--- Black-box all "primitive" operations like arithmetic
--- This is obviously incomplete but it's not high-priority
+-- This code isn't very nice, largely because I anticipate it all being
+-- replaced eventually anyway.
 magic :: Env -> Exp -> EvalStep
 magic v e = case e of
  App (App (Var p) x) y -> rhs (fromQName p) x y
  InfixApp x (QVarOp o) y -> rhs (fromQName o) x y
  _ -> Done
- where rhs p@(Symbol s) m n = case (m, n) of
-        -- whee implicit coercion
-        (Lit (Int x), Lit (Int y)) -> op s Int x y
-        (Lit (Frac x), Lit (Int y)) -> op s Frac x (toRational y)
-        (Lit (Int x), Lit (Frac y)) -> op s Frac (toRational x) y
-        (Lit (Frac x), Lit (Frac y)) -> op s Frac x y
-        (Lit _, e) -> InfixApp m (QVarOp (UnQual p)) |$| step v e
-        (e, _) -> (\e' -> InfixApp e' (QVarOp (UnQual p)) n) |$| step v e
+ where rhs p@(Symbol s) x y = case lookup s ops of
+        Just (+*) -> case (step v x, step v y) of
+         (Done, Done) -> x +* y
+         (Done, y') -> InfixApp x op |$| y'
+         (x', _) -> (\e -> InfixApp e op y) |$| x'
+         where op = QVarOp (UnQual p)
+        Nothing -> Done
        rhs _ _ _ = Done
-       op s c x y = case s of
-        "+" -> num $ x + y
-        "*" -> num $ x * y
-        "-" -> num $ x - y
-        "<" -> bool $ x < y
-        "<=" -> bool $ x <= y
-        ">" -> bool $ x > y
-        ">=" -> bool $ x >= y
-        "==" -> bool $ x == y
-        "/=" -> bool $ x /= y
-        _ -> Done
-        where num x = yield . Lit . c $ x
-              bool b = yield . Con . UnQual . Ident $
-               if b then "True" else "False"
+       lit x = case properFraction (toRational x) of
+        (i, 0) -> Lit (Int i)
+        (i, r) -> Lit (Frac (toRational i + r))
+       con = Con . UnQual . Ident
+       unlit (Lit (Int i)) = Just $ toRational i
+       unlit (Lit (Frac r)) = Just r
+       unlit _ = Nothing
+       ops = [
+        ("+", num (+)),
+        ("*", num (*)),
+        ("-", num (-)),
+        ("<", bool (<)),
+        ("<=", bool (<=)),
+        (">", bool (>)),
+        (">=", bool (>=)),
+        ("==", bool (==)),
+        ("/=", bool (/=))]
+       num op = mkOp lit op
+       bool op = mkOp (con . show) op
+       mkOp f g m n = maybe Done (yield . f) $ g <$> unlit m <*> unlit n
 
 tidyBinds :: Exp -> Env -> Env
 tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v

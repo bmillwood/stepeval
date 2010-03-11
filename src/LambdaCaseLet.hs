@@ -292,7 +292,7 @@ withName f (Ident n) = Ident (f n)
 withName f (Symbol n) = Symbol (f n)
 
 isFreeIn :: Name -> GenericQ Bool
-isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (is n) x))
+isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))
  where is n@(Symbol s)
         | s == ">>" || s == ">>=" = mkQ False (== n) `extQ` isDo
        is n = mkQ False (== n)
@@ -301,9 +301,7 @@ isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (is n) x))
 
 freeNames :: GenericQ [Name]
 freeNames e = filter (`isFreeIn` e) . Set.toList . Set.fromList $
- listify (mkQ False isName) e
- where isName :: Name -> Bool
-       isName = const True
+ listify (const True) e
 
 peval :: EvalStep -> Maybe MatchResult
 peval (Step e) = Just $ Left e

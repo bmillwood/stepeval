@@ -3,9 +3,10 @@ module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad ((<=<), join)
 import Data.Data (Typeable, gmapQ, gmapT)
+import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
-import Data.Monoid (mconcat, Endo (Endo, appEndo))
+import Data.Monoid (Endo (Endo, appEndo))
 import Data.Generics (GenericQ, GenericT,
  everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
 import qualified Data.Set as Set (fromList, toList)
@@ -98,36 +99,38 @@ step v e@(InfixApp p o q) = case o of
   (\f -> App (App f p) q) |$| need v (fromQName n)
  QConOp _ -> (\p' -> InfixApp p' o q) |$| step v p `orE`
   InfixApp p o |$| step v q
-step v e@(App f x) = magic v e `orE` case f of
- Paren p -> step v (App p x)
- Lambda _ [] _ -> error "Lambda with no patterns?"
- Lambda s ps@(p:qs) e -> case patternMatch v p x of
-  Nothing -> Failure
-  Just (Left r) -> App (Lambda s ps e) |$| Step r
-  Just (Right ms) -> case qs of
-   [] -> yield $ applyMatches ms e
-   qs
-    | anywhere (`elem` mnames) qs -> yield $ App newLambda x
-    | otherwise -> yield . Lambda s qs $ applyMatches ms e
-    where newLambda = Lambda s (fixNames ps) (fixNames e)
-          fixNames :: GenericT -- the DMR strikes again
-          -- The first pattern in the lambda is about to be gobbled. Rename
-          -- every other pattern that will conflict with any of the names
-          -- introduced by the pattern match.
-          -- We avoid names already existing in the lambda, except for the
-          -- one we're in the process of renaming (that would be silly)
-          fixNames = appEndo . mconcat $
-           map (\n -> Endo $ alpha n (delete n lnames ++ mnames))
-           (freeNames qs)
-          lnames = freeNames ps ++ freeNames e
-          mnames = Set.toList . mconcat . map Set.fromList $
-           map (freeNames . snd) ms
- LeftSection e o -> yield $ InfixApp e o x
- RightSection o e -> yield $ InfixApp x o e
- _ -> case step v f of
-  Step (Eval g) -> yield $ App g x
-  Done -> App f |$| step v x
-  r -> r
+step v e@(App _ _) = magic v e `orE` case argList e of
+ LeftSection e o : x : xs -> yield . unArgList $ InfixApp e o x : xs
+ RightSection o e : x : xs -> yield . unArgList $ InfixApp x o e : xs
+ f@(Lambda _ _ _) : es -> applyLambda f es
+  where applyLambda (Lambda _ [] _) _ = error "Lambda with no patterns?"
+        applyLambda f [] = yield f
+        applyLambda (Lambda s ps@(p:qs) e) (x:xs) =
+         case patternMatch v p x of
+          Nothing -> Failure
+          Just (Left r) ->
+           (\x -> unArgList $ Lambda s ps e : x : xs) |$| Step r
+          Just (Right ms) -> case qs of
+           [] -> yield $ unArgList (applyMatches ms e : xs)
+           qs
+            | anywhere (`elem` mnames) qs -> yield $ App newLambda x
+            | otherwise -> applyLambda (Lambda s qs $ applyMatches ms e) xs
+            where newLambda = Lambda s (fixNames ps) (fixNames e)
+                  fixNames :: GenericT -- the DMR strikes again
+                  -- The first pattern in the lambda is about to be gobbled.
+                  -- Rename every other pattern that will conflict with any
+                  -- of the names introduced by the pattern match.
+                  -- We avoid names already existing in the lambda, except
+                  -- for the one we're in the process of renaming (that
+                  -- would be silly)
+                  fixNames = appEndo $ foldMap
+                   (\n -> Endo $ alpha n (delete n lnames ++ mnames))
+                   (freeNames qs)
+                  lnames = freeNames ps ++ freeNames e
+                  mnames = Set.toList .
+                   foldMap (Set.fromList . freeNames . snd) $ ms
+        applyLambda _ _ = error "not a lambda!"
+ es -> liststep v unArgList es
 step _ (Case _ []) = error "Case with no branches?"
 step v (Case e alts@(Alt l p a (BDecls []) : as)) =
  case patternMatch v p e of
@@ -369,10 +372,15 @@ matches _ _ _ = Nothing
 argList :: Exp -> [Exp]
 argList = reverse . atl
  where atl (App f x) = x : atl f
+       atl (Paren p) = atl p
        atl (InfixApp p o q) = [q, p, case o of
         QVarOp n -> Var n
         QConOp n -> Con n]
        atl e = [e]
+
+unArgList :: [Exp] -> Exp
+unArgList [] = error "unArgList: no expressions"
+unArgList es = foldl1 App es
 
 shadows :: Name -> GenericQ Bool
 shadows n = mkQ False exprS `extQ` altS

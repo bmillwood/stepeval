@@ -166,13 +166,7 @@ step v (Let (BDecls bs) e) = case step (bs : v) e of
 step v (Tuple xs) = case xs of
  [] -> error "Empty tuple?"
  [_] -> error "Singleton tuple?"
- es -> go es
-  where go es = case es of
-         [] -> Done
-         e:es -> case step v e of
-          Step (Eval e') -> yield (Tuple (e':es))
-          Done -> (\(Tuple es) -> Tuple (e:es)) |$| go es
-          r -> r
+ es -> liststep v Tuple es
 step _ (LeftSection _ _) = Done
 step _ (RightSection _ _) = Done
 step _ (Lit _) = Done
@@ -180,6 +174,15 @@ step _ (List []) = Done
 step _ (Con _) = Done
 step _ (Lambda _ _ _) = Done
 step _ e = todo e
+
+liststep :: Env -> ([Exp] -> Exp) -> [Exp] -> EvalStep
+liststep v f es = go es []
+ where go es a = case es of
+        [] -> Done
+        e:es -> case step v e of
+          Step (Eval e') -> yield . f $ reverse a ++ e':es
+          Done -> go es (e:a)
+          r -> r
 
 -- This code isn't very nice, largely because I anticipate it all being
 -- replaced eventually anyway.

@@ -113,7 +113,8 @@ step v e@(App _ _) = magic v e `orE` case argList e of
           Just (Right ms) -> case qs of
            [] -> yield $ unArgList (applyMatches ms e : xs)
            qs
-            | anywhere (`elem` mnames) qs -> yield $ App newLambda x
+            | anywhere (`elem` mnames) qs ->
+               yield . unArgList $ newLambda : x : xs
             | otherwise -> applyLambda (Lambda s qs $ applyMatches ms e) xs
             where newLambda = Lambda s (fixNames ps) (fixNames e)
                   fixNames :: GenericT -- the DMR strikes again

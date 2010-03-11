@@ -380,8 +380,15 @@ argList = reverse . atl
        atl e = [e]
 
 unArgList :: [Exp] -> Exp
+unArgList (e:es@(x:ys)) = case e of
+ Con q@(Special Cons) -> rhs (QConOp q) x ys
+ Con q@(UnQual (Symbol _)) -> rhs (QConOp q) x ys
+ Var q@(UnQual (Symbol _)) -> rhs (QVarOp q) x ys
+ e -> foldl App e es
+ where rhs o x [] = LeftSection x o
+       rhs o x (y:ys) = unArgList $ InfixApp x o y : ys
+unArgList (e:es) = foldl App e es
 unArgList [] = error "unArgList: no expressions"
-unArgList es = foldl1 App es
 
 shadows :: Name -> GenericQ Bool
 shadows n = mkQ False exprS `extQ` altS

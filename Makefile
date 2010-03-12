@@ -1,7 +1,7 @@
 default: dist
 	cabal build
 configure dist: $(wildcard Setup.hs *.cabal)
-	cabal configure
+	cabal configure -ftest
 clean:
 	cabal $@
 

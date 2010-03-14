@@ -86,7 +86,7 @@ step _ (Do (s:ss)) = case s of
  Generator s p e -> yield $ InfixApp e (op ">>=")
   (Lambda s [p] (Do ss))
  LetStmt bs -> yield $ Let bs (Do ss)
- s -> todo s
+ s -> todo "step Do" s
  where op = QVarOp . UnQual . Symbol
 step v (Var n) = need v (fromQName n)
 step _ (If (Con (UnQual (Ident i))) t f) = case i of
@@ -148,7 +148,7 @@ step v (Case e alts@(Alt l p a (BDecls []) : as)) =
        else yield $ mkCase (GuardedAlts gs)
      | otherwise -> Failure
     [Qualifier q] -> mkCase . newAlt |$| step v q
-    a -> todo a
+    a -> todo "step Case GuardedAlts" a
     where newAlt q = GuardedAlts (GuardedAlt m [Qualifier q] x : gs)
           mkCase a = Case e (Alt l p a (BDecls []) : as)
    GuardedAlts [] -> error "Case branch with no expression?"
@@ -158,7 +158,7 @@ step v (Case e alts@(Alt l p a (BDecls []) : as)) =
   Nothing
    | null as -> Failure
    | otherwise -> yield $ Case e as
-step _ e@(Case _ _) = todo e
+step _ e@(Case _ _) = todo "step Case" e
 step _ (Let (BDecls []) e) = yield e
 step v (Let (BDecls bs) e) = case step (bs : v) e of
   Step (Eval e') -> yield $ newLet e' bs
@@ -177,7 +177,7 @@ step _ (Lit _) = Done
 step _ (List []) = Done
 step _ (Con _) = Done
 step _ (Lambda _ _ _) = Done
-step _ e = todo e
+step _ e = todo "step _" e
 
 liststep :: Env -> ([Exp] -> Exp) -> [Exp] -> EvalStep
 liststep v f es = go es []
@@ -229,9 +229,9 @@ tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v
  where go es ds = let (ys, xs) = partition (usedIn es) ds
         in if null ys then [] else ys ++ go (concatMap exprs ys) xs
        binds (PatBind _ (PVar n) _ _ _) = [n]
-       binds l = todo l
+       binds l = todo "tidyBinds binds" l
        exprs (PatBind _ _ _ (UnGuardedRhs e) _) = [e]
-       exprs l = todo l
+       exprs l = todo "tidyBinds exprs" l
        usedIn es d = any (\n -> any (isFreeIn n) es) (binds d)
 
 need :: Env -> Name -> EvalStep
@@ -244,9 +244,9 @@ need v n = case envBreak match v of
     Step (Eval e') -> Step . EnvEval $
      PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
     f -> f
-  b -> todo b
+  b -> todo "need case" b
  where match (PatBind _ (PVar m) _ _ _) = m == n
-       match l = todo l
+       match l = todo "need match" l
 
 updateBind :: Decl -> Scope -> Maybe Scope
 updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
@@ -254,14 +254,14 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
  (h, _ : t) -> Just $ h ++ p : t
  where match (PatBind _ (PVar m) _ _ _) = n == m
        match _ = False
-updateBind l _ = todo l
+updateBind l _ = todo "updateBind" l
 
 envLookup :: Env -> Name -> Maybe Decl
 envLookup v n = case envBreak match v of
  (_, _, [], _) -> Nothing
  (_, _, c : _, _) -> Just c
  where match (PatBind _ (PVar m) _ _ _) = m == n
-       match l = todo l
+       match l = todo "envLookup match" l
 
 envBreak :: (a -> Bool) -> [[a]] -> ([[a]], [a], [a], [[a]])
 envBreak _ [] = ([], [], [], [])
@@ -328,7 +328,7 @@ patternMatch _ (PVar n) x = pmatch [(n, x)]
 patternMatch v p (Var q) = case envLookup v (fromQName q) of
  Nothing -> Nothing
  Just (PatBind _ _ _ (UnGuardedRhs e) _) -> patternMatch v p e
- Just l -> todo l
+ Just l -> todo "patternMatch Var" l
 -- Translate infix cases to prefix cases for simplicity
 -- I need to stop doing this at some point
 patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s
@@ -359,7 +359,7 @@ patternMatch v (PApp n ps) q = case argList q of
   | otherwise -> Nothing
  _ -> peval $ step v q
 -- Fallback case
-patternMatch _ p q = todo (p, q)
+patternMatch _ p q = todo "patternMatch _" (p, q)
 
 matches :: Env -> [Pat] -> [Exp] -> Maybe MatchResult
 matches _ [] [] = pmatch []
@@ -402,6 +402,6 @@ shadows n = mkQ False exprS `extQ` altS
 anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool
 anywhere p = everything (||) (mkQ False p)
 
-todo :: (Show s) => s -> a
-todo = error . ("Not implemented: " ++) . show
+todo :: (Show s) => String -> s -> a
+todo s = error . (s ++) . (": Not implemented: " ++) . show
 

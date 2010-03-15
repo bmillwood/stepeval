@@ -1,7 +1,7 @@
 Cabal-Version: >= 1.6
 Name:          stepeval
 Version:       0.1
--- Category:      TODO
+Category:      Language
 Synopsis:      A tool for displaying the evaluation of a Haskell expression
 Description:   stepeval is a tool that can operate as a command-line utility
                or CGI script. In either case, it is given a Haskell

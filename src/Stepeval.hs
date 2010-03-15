@@ -133,6 +133,22 @@ step v e@(App _ _) = magic v e `orE` case argList e of
                   mnames = Set.toList .
                    foldMap (Set.fromList . freeNames . snd) $ ms
         applyLambda _ _ = error "not a lambda!"
+ f@(Var q) : es -> case envLookup v (fromQName q) of
+  Nothing -> fallback
+  Just (PatBind _ _ _ _ _) -> fallback
+  Just (FunBind ms)
+   | null . drop (pred arity) $ es -> fallback
+   | otherwise -> foldr (orE . app) fallback ms
+   where arity = funArity ms
+         app (Match _ _ ps _ (UnGuardedRhs e') (BDecls [])) =
+          case matches v ps xs (unArgList . (f :)) of
+           Nothing -> Failure
+           Just (Left r) -> Step r
+           Just (Right ms) -> yield . unArgList $ applyMatches ms e' : r
+           where (xs, r) = splitAt arity es
+         app m = todo "step App Var app" m
+  Just d -> todo "step App Var" d
+  where fallback = liststep v unArgList (f : es)
  es -> liststep v unArgList es
 step _ (Case _ []) = error "Case with no branches?"
 step v (Case e alts@(Alt l p a (BDecls []) : as)) =
@@ -258,6 +274,12 @@ funName (Match _ n _ _ _ _ : ms) = foldr match n ms
  where match (Match _ m _ _ _ _) n | m == n = n
        match m n = error $ "Match names don't? " ++ show (m, n)
 
+funArity :: [Match] -> Int
+funArity [] = error "No matches?"
+funArity (Match _ n ps _ _ _ : ms) = foldr match (length ps) ms
+ where match (Match _ _ ps _ _ _) l | length ps == l = l
+       match _ _ = error $ "Matches of different arity? " ++ show n
+
 funToCase :: [Match] -> Exp
 funToCase [] = error "No matches?"
 -- unsure of whether this is the right SrcLoc
@@ -284,7 +306,7 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
  (_, []) -> Nothing
  (h, _ : t) -> Just $ h ++ p : t
  where match (PatBind _ (PVar m) _ _ _) = n == m
-       match _ = False
+       match d = todo "updateBind match" d
 updateBind l _ = todo "updateBind" l
 
 envLookup :: Env -> Name -> Maybe Decl
@@ -292,6 +314,7 @@ envLookup v n = case envBreak match v of
  (_, _, [], _) -> Nothing
  (_, _, c : _, _) -> Just c
  where match (PatBind _ (PVar m) _ _ _) = m == n
+       match (FunBind ms) = funName ms == n
        match l = todo "envLookup match" l
 
 envBreak :: (a -> Bool) -> [[a]] -> ([[a]], [a], [a], [[a]])
@@ -359,6 +382,7 @@ patternMatch _ (PVar n) x = pmatch [(n, x)]
 patternMatch v p (Var q) = case envLookup v (fromQName q) of
  Nothing -> Nothing
  Just (PatBind _ _ _ (UnGuardedRhs e) _) -> patternMatch v p e
+ Just (FunBind _) -> Nothing -- functions can only match trivial patterns
  Just l -> todo "patternMatch Var" l
 -- Translate infix cases to prefix cases for simplicity
 -- I need to stop doing this at some point

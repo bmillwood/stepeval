@@ -14,7 +14,7 @@ Executable stepeval
  GHC-Options:    -W
  Hs-Source-Dirs: src
  Main-Is:        Main.hs
- Other-Modules:  LambdaCaseLet
+ Other-Modules:  Stepeval
 
 Flag Test
  Description: Build the testing application
@@ -27,7 +27,7 @@ Executable test
   Build-Depends:  base >= 4 && < 4.3, directory < 1.1, syb < 0.2
   GHC-Options:    -W
   Hs-Source-Dirs: src testsuite
-  Other-Modules:  LambdaCaseLet
+  Other-Modules:  Stepeval
  else
   Buildable: False
 

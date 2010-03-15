@@ -1,4 +1,4 @@
-module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
+module Stepeval (eval, itereval, printeval, stepeval, stepseval) where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad ((<=<), join, replicateM)

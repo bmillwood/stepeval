@@ -8,7 +8,7 @@ import Data.List
 import Language.Haskell.Exts
 import System.Directory
 
-import LambdaCaseLet
+import Stepeval
 
 main = setCurrentDirectory "testsuite" >> getTests >>= mapM_ runTest
 

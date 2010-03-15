@@ -17,16 +17,20 @@ getTests = sort <$> getDirectoryContents "." >>= filterM doesFileExist >>=
 runTest (t, b) = case dropWhile (/= '.') t of
  ".step" -> go . map parseExp $ paragraphs b
  ".eval" -> case map parseExp $ paragraphs b of
-  [ParseOk i, ParseOk o] ->
-   let ei = eval i in if eval ei === o then success else failure ei o
+  [ParseOk i, ParseOk o]
+   | eval ei === o -> success
+   | otherwise -> failure (prettyPrint ei) (prettyPrint o)
+   where ei = eval i
  _ -> return ()
  where success = putStrLn $ t ++ ": success!"
-       failure a b = putStrLn $ t ++ ": failure:\n" ++ show a ++ '\n':show b
+       failure a b = putStrLn $ t ++ ": failure:\n" ++ a ++ '\n':b
        go [] = error $ t ++ ": empty test?"
        go [_] = success
        go (ParseOk e:r@(ParseOk e'):es)
         | e ==> e' = go (r:es)
-        | otherwise = failure (squidge (stepeval e)) (squidge e')
+        | otherwise = failure a b
+        where a = maybe "Nothing" prettyPrint . squidge $ stepeval e
+              b = prettyPrint . squidge $ e'
        go _ = putStrLn $ t ++ ": parse failed!"
        a ==> b = stepeval a === Just b
        a === b = squidge a == squidge b

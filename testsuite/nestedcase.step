@@ -1,0 +1,9 @@
+case (0, (\x -> x) 1) of
+ (0, 1) -> True
+ _ -> False
+
+case (0, 1) of
+ (0, 1) -> True
+ _ -> False
+
+True

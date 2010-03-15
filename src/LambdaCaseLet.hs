@@ -180,12 +180,12 @@ step _ (Lambda _ _ _) = Done
 step _ e = todo "step _" e
 
 liststep :: Env -> ([Exp] -> Exp) -> [Exp] -> EvalStep
-liststep v f es = go es []
- where go es a = case es of
+liststep v f es = go es id
+ where go es g = case es of
         [] -> Done
         e:es -> case step v e of
-          Step (Eval e') -> yield . f $ reverse a ++ e':es
-          Done -> go es (e:a)
+          Step (Eval e') -> yield . f . g $ e':es
+          Done -> go es ((e:) . g)
           r -> r
 
 -- This code isn't very nice, largely because I anticipate it all being
@@ -350,25 +350,29 @@ patternMatch v (PList (p:ps)) q =
  patternMatch v (PApp (Special Cons) [p, PList ps]) q
 -- Tuples
 patternMatch v (PTuple ps) q = case q of
- Tuple qs -> matches v ps qs
+ Tuple qs -> matches v ps qs Tuple
  _ -> peval $ step v q
 -- Constructor matches
 patternMatch v (PApp n ps) q = case argList q of
  (Con c:xs)
-  | c == n -> matches v ps xs
+  | c == n -> matches v ps xs (unArgList . (Con c :))
   | otherwise -> Nothing
  _ -> peval $ step v q
 -- Fallback case
 patternMatch _ p q = todo "patternMatch _" (p, q)
 
-matches :: Env -> [Pat] -> [Exp] -> Maybe MatchResult
-matches _ [] [] = pmatch []
-matches v (p:ps) (x:xs) = case (patternMatch v p x, matches v ps xs) of
- (Nothing, _) -> Nothing
- (r@(Just (Left _)), _) -> r
- (Just (Right xs), Just (Right ys)) -> Just (Right (xs ++ ys))
- (_, r) -> r
-matches _ _ _ = Nothing
+matches :: Env -> [Pat] -> [Exp] -> ([Exp] -> Exp) -> Maybe MatchResult
+matches _ [] [] _ = pmatch []
+matches v ps xs f = go v ps xs id
+ where go _ [] [] _ = pmatch []
+       go v (p:ps) (e:es) g =
+        case (patternMatch v p e, go v ps es ((e:) . g)) of
+         (Nothing, _) -> Nothing
+         (Just (Left (Eval e')), _) -> Just . Left . Eval . f . g $ e' : es
+         (r@(Just (Left _)), _) -> r
+         (Just (Right xs), Just (Right ys)) -> Just (Right (xs ++ ys))
+         (_, r) -> r
+       go _ _ _ _ = Nothing
 
 argList :: Exp -> [Exp]
 argList = reverse . atl

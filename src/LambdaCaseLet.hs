@@ -185,7 +185,7 @@ liststep v f es = go es id
         [] -> Done
         e:es -> case step v e of
           Step (Eval e') -> yield . f . g $ e':es
-          Done -> go es ((e:) . g)
+          Done -> go es (g . (e:))
           r -> r
 
 -- This code isn't very nice, largely because I anticipate it all being
@@ -366,7 +366,7 @@ matches _ [] [] _ = pmatch []
 matches v ps xs f = go v ps xs id
  where go _ [] [] _ = pmatch []
        go v (p:ps) (e:es) g =
-        case (patternMatch v p e, go v ps es ((e:) . g)) of
+        case (patternMatch v p e, go v ps es (g . (e:))) of
          (Nothing, _) -> Nothing
          (Just (Left (Eval e')), _) -> Just . Left . Eval . f . g $ e' : es
          (r@(Just (Left _)), _) -> r

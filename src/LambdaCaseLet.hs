@@ -1,7 +1,7 @@
 module LambdaCaseLet (eval, itereval, printeval, stepeval, stepseval) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad ((<=<), join)
+import Control.Monad ((<=<), join, replicateM)
 import Data.Data (Typeable, gmapQ, gmapT)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
@@ -13,17 +13,19 @@ import qualified Data.Set as Set (fromList, toList)
 import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
- Decl (PatBind),
+ Decl (PatBind, FunBind),
  Exp (App, Case, Con, Do, If, InfixApp, Lambda, LeftSection,
   Let, List, Lit, Paren, RightSection, Tuple, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
+ GuardedRhs (GuardedRhs),
  Literal (Char, Frac, Int, String),
+ Match (Match),
  Pat (PApp, PInfixApp, PList, PLit, PParen, PTuple, PVar, PWildCard),
  Name (Ident, Symbol),
  QName (Special, UnQual),
  QOp (QConOp, QVarOp),
- Rhs (UnGuardedRhs),
+ Rhs (UnGuardedRhs, GuardedRhss),
  SpecialCon (Cons),
  Stmt (Generator, LetStmt, Qualifier),
  prettyPrint
@@ -225,14 +227,14 @@ magic v e = case e of
        mkOp f g m n = maybe Done (yield . f) $ g <$> unlit m <*> unlit n
 
 tidyBinds :: Exp -> Scope -> Scope
-tidyBinds e v = let keep = go [e] v in filter (`elem` keep) v
- where go es ds = let (ys, xs) = partition (usedIn es) ds
-        in if null ys then [] else ys ++ go (concatMap exprs ys) xs
+tidyBinds e v = let keep = go (usedIn e) v in filter (`elem` keep) v
+ where go p ds = case partition p ds of
+        ([], _) -> []
+        (ys, xs) -> ys ++ go ((||) <$> p <*> usedIn ys) xs
        binds (PatBind _ (PVar n) _ _ _) = [n]
+       binds (FunBind ms) = [funName ms]
        binds l = todo "tidyBinds binds" l
-       exprs (PatBind _ _ _ (UnGuardedRhs e) _) = [e]
-       exprs l = todo "tidyBinds exprs" l
-       usedIn es d = any (\n -> any (isFreeIn n) es) (binds d)
+       usedIn es d = any (\n -> isFreeIn n es) (binds d)
 
 need :: Env -> Name -> EvalStep
 need v n = case envBreak match v of
@@ -244,9 +246,38 @@ need v n = case envBreak match v of
     Step (Eval e') -> Step . EnvEval $
      PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
     f -> f
+  FunBind ms -> yield $ funToCase ms
   b -> todo "need case" b
  where match (PatBind _ (PVar m) _ _ _) = m == n
+       match (FunBind ms) = funName ms == n
        match l = todo "need match" l
+
+funName :: [Match] -> Name
+funName [] = error "No matches?"
+funName (Match _ n _ _ _ _ : ms) = foldr match n ms
+ where match (Match _ m _ _ _ _) n | m == n = n
+       match m n = error $ "Match names don't? " ++ show (m, n)
+
+funToCase :: [Match] -> Exp
+funToCase [] = error "No matches?"
+-- unsure of whether this is the right SrcLoc
+funToCase [Match s _ ps _ (UnGuardedRhs e) (BDecls [])] = Lambda s ps e
+funToCase ms@(Match s _ ps _ _ _ : _) = Lambda s qs $ Case e as
+ where qs = map (PVar . Ident) names
+       e = tuple $ map (Var . UnQual . Ident) names
+       as = map matchToAlt ms
+       tuple [] = error "No patterns in match?"
+       tuple [x] = x
+       tuple xs = Tuple xs
+       names = zipWith const (concatMap (\i -> nameslen i) [1 ..]) ps
+       nameslen i = replicateM i ['a' .. 'z']
+       matchToAlt (Match s _ ps _ r bs) = Alt s (ptuple ps) (rhsToAlt r) bs
+       ptuple [] = error "No patterns in match?"
+       ptuple [x] = x
+       ptuple xs = PTuple xs
+       rhsToAlt (UnGuardedRhs e) = UnGuardedAlt e
+       rhsToAlt (GuardedRhss rs) = GuardedAlts $
+        map (\(GuardedRhs s t e) -> GuardedAlt s t e) rs
 
 updateBind :: Decl -> Scope -> Maybe Scope
 updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of

@@ -1,0 +1,6 @@
+let sum = foldr (+) 0
+    foldr f z [] = z
+    foldr f z (x:xs) = f x (foldr f z xs)
+ in sum [1,2,3,4,5]
+
+15

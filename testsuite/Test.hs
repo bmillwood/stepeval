@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Exception
 import Control.Monad
 import Data.Functor
 import Data.Generics
@@ -14,7 +15,7 @@ main = setCurrentDirectory "testsuite" >> getTests >>= mapM_ runTest
 getTests = sort <$> getDirectoryContents "." >>= filterM doesFileExist >>=
  mapM (\t -> ((,) t) <$> readFile t)
 
-runTest (t, b) = case dropWhile (/= '.') t of
+runTest (t, b) = handle showEx $ case dropWhile (/= '.') t of
  ".step" -> go . map parseExp $ paragraphs b
  ".eval" -> case map parseExp $ paragraphs b of
   [ParseOk i, ParseOk o]
@@ -25,6 +26,7 @@ runTest (t, b) = case dropWhile (/= '.') t of
  _ -> return ()
  where success = putStrLn $ t ++ ": success!"
        failure a b = putStrLn $ t ++ ": failure:\n" ++ a ++ '\n':b
+       showEx e = putStrLn $ t ++ ": error: " ++ show (e :: SomeException)
        go [] = error $ t ++ ": empty test?"
        go [_] = success
        go (ParseOk e:r@(ParseOk e'):es)

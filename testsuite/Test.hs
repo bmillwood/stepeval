@@ -21,6 +21,7 @@ runTest (t, b) = case dropWhile (/= '.') t of
    | eval ei === o -> success
    | otherwise -> failure (prettyPrint ei) (prettyPrint o)
    where ei = eval i
+  rs -> error $ "unexpected test parse result: " ++ show rs
  _ -> return ()
  where success = putStrLn $ t ++ ": success!"
        failure a b = putStrLn $ t ++ ": failure:\n" ++ a ++ '\n':b

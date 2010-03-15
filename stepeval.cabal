@@ -25,7 +25,9 @@ Executable test
 
  if flag(test)
   Build-Depends:  base >= 4 && < 4.3, directory < 1.1, syb < 0.2
+  GHC-Options:    -W
   Hs-Source-Dirs: src testsuite
+  Other-Modules:  LambdaCaseLet
  else
   Buildable: False
 

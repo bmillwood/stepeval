@@ -2,9 +2,9 @@ Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
 
 TODO:
 
-FunBind decls
-
-The test suite could do with expansion
+FunBinds should not really have to go through an explicit case step. It
+would also be nice if when that case step is necessary, we can eliminate
+redundant elements from the tuples involved.
 
 A detached larger environment so that an actually decent library can be
 ticking away behind the scenes. This includes better support for primitive
@@ -12,9 +12,9 @@ operations like arithmetic.
 
 Polymorphism?
 
-FIXME:
-
-Nested let-scopes just don't work at all.
+Everywhere in the program I have emphasised correctness and simplicity of
+code over performance. In a lot of small ways and a few big ones the
+efficiency of the algorithms involved is much poorer than it needs to be.
 
 Pattern matching can see deep into bindings, which may make how it found
 a match non-obvious. For example:
@@ -23,7 +23,7 @@ let x = 1 : x in
       _ : _ : _ : _ : _ -> True
 matches immediately.
 
-Everywhere in the program I have emphasised correctness and simplicity of
-code over performance. In a lot of small ways and a few big ones the
-efficiency of the algorithms involved is much poorer than it needs to be.
+FIXME:
+
+Nested let-scopes aren't properly supported.
 

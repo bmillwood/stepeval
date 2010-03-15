@@ -11,13 +11,21 @@ import Prelude hiding (catch)
 import Stepeval
 import System.Environment
 import System.IO
+import Text.Printf
+
+version = "stepeval v0.1"
 
 main :: IO ()
 main = do
- e <- lookup "QUERY_STRING" <$> getEnvironment
- case e of
-  Nothing -> cliMain
-  Just s -> cgiMain s
+ args <- getArgs
+ case args of
+  ["--version"] -> putStrLn version
+  [] -> do
+   e <- lookup "QUERY_STRING" <$> getEnvironment
+   case e of
+    Nothing -> cliMain
+    Just s -> cgiMain s
+  _ -> printf "Usage: %s [--version]\n" =<< getProgName
 
 cliMain :: IO ()
 cliMain = do
@@ -40,7 +48,7 @@ cgiMain qstr = do
  putStrLn . concat $
   ["Content-Type: text/html; charset=UTF-8\n\n",
    "<html>\n<head>\n",
-   "<title>Step-by-step evaluator</title>\n",
+   "<title>" ++ version ++ "</title>\n",
    "<style type=\"text/css\">\n",
    "ol { white-space: pre; font-family: monospace }\n</style>\n",
    "</head>\n",

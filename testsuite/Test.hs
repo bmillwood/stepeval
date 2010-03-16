@@ -1,8 +1,8 @@
 module Main (main) where
 
-import Control.Exception
+import Control.Applicative
+import Control.Exception.Extensible
 import Control.Monad
-import Data.Functor
 import Data.Generics
 import Data.List
 import Language.Haskell.Exts

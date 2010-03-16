@@ -2,13 +2,12 @@ module Stepeval (eval, itereval, printeval, stepeval, stepseval) where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad ((<=<), join, replicateM)
-import Data.Data (Typeable, gmapQ, gmapT)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
 import Data.Monoid (Endo (Endo, appEndo))
-import Data.Generics (GenericQ, GenericT,
- everything, everywhereBut, extQ, extT, listify, mkQ, mkT)
+import Data.Generics (GenericQ, GenericT, Typeable,
+ everything, everywhereBut, extQ, extT, gmapQ, gmapT, listify, mkQ, mkT)
 import qualified Data.Set as Set (fromList, toList)
 import Language.Haskell.Exts (
  Alt (Alt),

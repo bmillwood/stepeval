@@ -1,4 +1,6 @@
-Cabal-Version: >= 1.6
+-- Technically a lie, Source-Repo requires 1.6, but 1.2 seems to be ok with
+-- ignoring it
+Cabal-Version: >= 1.2
 
 Name:     stepeval
 Version:  0.1
@@ -25,29 +27,42 @@ Tested-with:        GHC == 6.12.1
 Stability:          None
 Extra-source-files: testsuite/*.step testsuite/*.eval
 
+Flag old
+ Description: Use base-3 dependencies
+ Default:     False
+
+Flag test
+ Description: Build the testing application
+ Default:     False
+
 Executable stepeval
- Build-Depends:  base >= 4 && < 4.3, containers < 0.4, syb < 0.2,
-                  haskell-src-exts < 1.9
+ Build-Depends: containers < 0.4, extensible-exceptions < 0.2,
+                haskell-src-exts < 1.9
+ if flag(old)
+  Build-Depends: base >= 3 && < 4
+ else 
+  Build-Depends: base >= 4 && < 4.3, syb < 0.2
+
  GHC-Options:    -W
  Hs-Source-Dirs: src
  Main-Is:        Main.hs
  Other-Modules:  Stepeval
 
-Flag Test
- Description: Build the testing application
- Default:     False
-
 Executable test
  Main-Is: Test.hs
 
  if flag(test)
-  Build-Depends:  base >= 4 && < 4.3, directory < 1.1, syb < 0.2
+  if flag(old)
+   Build-Depends: base >= 3 && < 4, directory < 1.1
+  else
+   Build-Depends: base >= 4 && < 4.3, directory < 1.1, syb < 0.2 
   GHC-Options:    -W
   Hs-Source-Dirs: src testsuite
   Other-Modules:  Stepeval
  else
   Buildable: False
 
+-- This is illegal with Cabal pre-1.6 but luckily it's not a fatal error
 Source-Repository head
  type:     git
  location: git://github.com/benmachine/stepeval.git

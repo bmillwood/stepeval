@@ -2,7 +2,7 @@ module Main (cgiMain, cliMain, main) where
 
 import Control.Applicative
 import Control.Concurrent
-import Control.Exception
+import Control.Exception.Extensible
 import Control.Monad
 import Data.Char
 import Language.Haskell.Exts

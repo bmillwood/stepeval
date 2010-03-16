@@ -1,5 +1,10 @@
 Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
 
+BUILD NOTES:
+
+On base-4, it requires very little to drop the extensible-exceptions
+dependency, just drop the .Extensible from the imports.
+
 TODO:
 
 It would be nice if when a FunBind needs a case step, we could remove

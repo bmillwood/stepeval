@@ -331,6 +331,11 @@ applyMatches :: [(Name, Exp)] -> GenericT
 -- If it's not an Exp, just recurse into it, otherwise try to substitute...
 applyMatches ms x = recurse `extT` replaceOne $ x
  where replaceOne e@(Var (UnQual m)) = fromMaybe e $ lookup m ms
+       replaceOne (InfixApp x o@(QVarOp (UnQual m)) y) =
+        fromMaybe (InfixApp rx o ry) (mkApp <$> lookup m ms)
+        where (rx, ry) = (replaceOne x, replaceOne y)
+              mkApp (Var q) = InfixApp rx (QVarOp q) ry
+              mkApp f = App (App f rx) ry
        -- ...or else recurse anyway
        replaceOne e = recurse e
        recurse e = gmapT (applyMatches (notShadowed e)) e

@@ -1,7 +1,7 @@
 module Stepeval (eval, itereval, printeval, stepeval, stepseval) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad ((<=<), join, replicateM)
+import Control.Monad ((<=<), join)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
@@ -17,14 +17,13 @@ import Language.Haskell.Exts (
   Let, List, Lit, Paren, RightSection, Tuple, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
- GuardedRhs (GuardedRhs),
  Literal (Char, Frac, Int, String),
  Match (Match),
  Pat (PApp, PInfixApp, PList, PLit, PParen, PTuple, PVar, PWildCard),
  Name (Ident, Symbol),
  QName (Special, UnQual),
  QOp (QConOp, QVarOp),
- Rhs (UnGuardedRhs, GuardedRhss),
+ Rhs (UnGuardedRhs),
  SpecialCon (Cons),
  Stmt (Generator, LetStmt, Qualifier),
  prettyPrint
@@ -261,7 +260,7 @@ need v n = case envBreak match v of
     Step (Eval e') -> Step . EnvEval $
      PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
     f -> f
-  FunBind ms -> yield $ funToCase ms
+  FunBind _ -> Done
   b -> todo "need case" b
  where match (PatBind _ (PVar m) _ _ _) = m == n
        match (FunBind ms) = funName ms == n
@@ -279,6 +278,7 @@ funArity (Match _ n ps _ _ _ : ms) = foldr match (length ps) ms
  where match (Match _ _ ps _ _ _) l | length ps == l = l
        match _ _ = error $ "Matches of different arity? " ++ show n
 
+{- Doubtful if this is useful, but I'm keeping it anyway
 funToCase :: [Match] -> Exp
 funToCase [] = error "No matches?"
 -- unsure of whether this is the right SrcLoc
@@ -299,6 +299,7 @@ funToCase ms@(Match s _ ps _ _ _ : _) = Lambda s qs $ Case e as
        rhsToAlt (UnGuardedRhs e) = UnGuardedAlt e
        rhsToAlt (GuardedRhss rs) = GuardedAlts $
         map (\(GuardedRhs s t e) -> GuardedAlt s t e) rs
+-}
 
 updateBind :: Decl -> Scope -> Maybe Scope
 updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of

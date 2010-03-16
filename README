@@ -2,8 +2,7 @@ Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
 
 TODO:
 
-FunBinds should not really have to go through an explicit case step. It
-would also be nice if when that case step is necessary, we can eliminate
+It would be nice if when a FunBind needs a case step, we could remove
 redundant elements from the tuples involved.
 
 A detached larger environment so that an actually decent library can be

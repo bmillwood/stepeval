@@ -96,7 +96,7 @@ step _ (If (Con (UnQual (Ident i))) t f) = case i of
 step v (If e t f) = (\e -> If e t f) |$| step v e
 step v e@(InfixApp p o q) = case o of
  QVarOp n -> magic v e `orE`
-  (\f -> App (App f p) q) |$| need v (fromQName n)
+  step v (App (App (Var n) p) q)
  QConOp _ -> (\p' -> InfixApp p' o q) |$| step v p `orE`
   InfixApp p o |$| step v q
 step v e@(App _ _) = magic v e `orE` case argList e of

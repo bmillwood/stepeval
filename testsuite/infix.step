@@ -1,5 +1,11 @@
-let f (*) = 2 * 3 in f (<)
+let f (*) = 2 * 3
+    x << y = 10 * x < y
+ in f (<<)
 
-2 < 3
+let x << y = 10 * x < y in 2 << 3
 
-True
+10 * 2 < 3
+
+20 < 3
+
+False

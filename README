@@ -7,9 +7,6 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
-It would be nice if when a FunBind needs a case step, we could remove
-redundant elements from the tuples involved.
-
 A detached larger environment so that an actually decent library can be
 ticking away behind the scenes. This includes better support for primitive
 operations like arithmetic.

@@ -8,6 +8,7 @@ import Data.List
 import Language.Haskell.Exts
 import System.Directory
 
+import Parenthise
 import Stepeval
 
 main = setCurrentDirectory "testsuite" >> getTests >>= mapM_ runTest
@@ -32,17 +33,16 @@ runTest (t, b) = handle showEx $ case dropWhile (/= '.') t of
        go (ParseOk e:r@(ParseOk e'):es)
         | e ==> e' = go (r:es)
         | otherwise = failure a b
-        where a = maybe "Nothing" prettyPrint . squidge $ stepeval e
+        where a = maybe "Nothing" (prettyPrint . squidge) $ stepeval e
               b = prettyPrint . squidge $ e'
        go _ = putStrLn $ t ++ ": parse failed!"
-       a ==> b = stepeval a === Just b
+       a ==> b = case stepeval a of
+        Nothing -> False
+        Just a' -> a' === b
        a === b = squidge a == squidge b
        paragraphs = foldr p [""] . lines
        p "" bs = "" : bs
        p a ~(b:bs) = (a ++ '\n':b) : bs
-       squidge :: GenericT
-       squidge = everywhere (mkT deparen `extT` deloc)
-       deparen (Paren p) = deparen p
-       deparen r = r
+       squidge = deparen . everywhere (mkT deloc)
        deloc _ = SrcLoc "" 0 0
 

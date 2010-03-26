@@ -37,6 +37,7 @@ enparenWithFixities fixes = everywhere (mkT reparen) . deparen
        reparen e = e
        unQOp (QVarOp (UnQual q)) = VarOp q
        unQOp (QConOp (UnQual q)) = ConOp q
+       unQOp (QConOp (Special Cons)) = ConOp (Symbol ":")
        unQOp q = error $ "unQOp: " ++ show q
        qFix = getFix . unQOp
        getFix o = foldr

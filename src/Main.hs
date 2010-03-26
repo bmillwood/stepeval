@@ -74,5 +74,5 @@ cgiMain qstr = do
        unescape (c:cs) = c:unescape cs
        unescape [] = ""
        pp e = "<ol>" ++ concatMap (("<li>" ++) . (++ "</li>\n") .
-        prettyPrint) (itereval e)
+        prettyPrint . enparen) (itereval e)
 

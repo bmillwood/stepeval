@@ -72,33 +72,9 @@ yield :: Exp -> EvalStep
 yield = Step . Eval
 
 step :: Env -> Exp -> EvalStep
-step v (Paren p) = step v p
-step _ (List (x:xs)) = yield $
- InfixApp x (QConOp (Special Cons)) (List xs)
-step _ (Lit (String (x:xs))) = yield $
- InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
-step _ (Do []) = error "Empty do?"
-step _ (Do [Qualifier e]) = yield e
-step _ (Do [e]) = error $
- "Last statement in a do block must be an expression: " ++ show e
-step _ (Do (s:ss)) = case s of
- Qualifier e -> yield $ InfixApp e (op ">>") (Do ss)
- Generator s p e -> yield $ InfixApp e (op ">>=")
-  (Lambda s [p] (Do ss))
- LetStmt bs -> yield $ Let bs (Do ss)
- s -> todo "step Do" s
- where op = QVarOp . UnQual . Symbol
+-- Variables
 step v (Var n) = need v (fromQName n)
-step _ (If (Con (UnQual (Ident i))) t f) = case i of
- "True" -> yield t
- "False" -> yield f
- _ -> Failure
-step v (If e t f) = (\e -> If e t f) |$| step v e
-step v e@(InfixApp p o q) = case o of
- QVarOp n -> magic v e `orE`
-  step v (App (App (Var n) p) q)
- QConOp _ -> (\p' -> InfixApp p' o q) |$| step v p `orE`
-  InfixApp p o |$| step v q
+-- Function application
 step v e@(App _ _) = magic v e `orE` case argList e of
  LeftSection e o : x : xs -> yield . unArgList $ InfixApp e o x : xs
  RightSection o e : x : xs -> yield . unArgList $ InfixApp x o e : xs
@@ -148,6 +124,12 @@ step v e@(App _ _) = magic v e `orE` case argList e of
   Just d -> todo "step App Var" d
   where fallback = liststep v unArgList (f : es)
  es -> liststep v unArgList es
+step v e@(InfixApp p o q) = case o of
+ QVarOp n -> magic v e `orE`
+  step v (App (App (Var n) p) q)
+ QConOp _ -> (\p' -> InfixApp p' o q) |$| step v p `orE`
+  InfixApp p o |$| step v q
+-- Case
 step _ (Case _ []) = error "Case with no branches?"
 step v (Case e alts@(Alt l p a (BDecls []) : as)) =
  case patternMatch v p e of
@@ -175,6 +157,7 @@ step v (Case e alts@(Alt l p a (BDecls []) : as)) =
    | null as -> Failure
    | otherwise -> yield $ Case e as
 step _ e@(Case _ _) = todo "step Case" e
+-- Let
 step _ (Let (BDecls []) e) = yield e
 step v (Let (BDecls bs) e) = case step (bs : v) e of
   Step (Eval e') -> yield $ newLet e' bs
@@ -183,10 +166,35 @@ step v (Let (BDecls bs) e) = case step (bs : v) e of
  where newLet e bs = case tidyBinds e bs of
         [] -> e
         bs' -> Let (BDecls bs') e
+-- If
+step _ (If (Con (UnQual (Ident i))) t f) = case i of
+ "True" -> yield t
+ "False" -> yield f
+ _ -> Failure
+step v (If e t f) = (\e -> If e t f) |$| step v e
+-- Desugarings
+step _ (List (x:xs)) = yield $
+ InfixApp x (QConOp (Special Cons)) (List xs)
+step _ (Lit (String (x:xs))) = yield $
+ InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
+step _ (Do []) = error "Empty do?"
+step _ (Do [Qualifier e]) = yield e
+step _ (Do [e]) = error $
+ "Last statement in a do block must be an expression: " ++ show e
+step _ (Do (s:ss)) = case s of
+ Qualifier e -> yield $ InfixApp e (op ">>") (Do ss)
+ Generator s p e -> yield $ InfixApp e (op ">>=")
+  (Lambda s [p] (Do ss))
+ LetStmt bs -> yield $ Let bs (Do ss)
+ s -> todo "step Do" s
+ where op = QVarOp . UnQual . Symbol
+-- Trivialities
+step v (Paren p) = step v p
 step v (Tuple xs) = case xs of
  [] -> error "Empty tuple?"
  [_] -> error "Singleton tuple?"
  es -> liststep v Tuple es
+-- Base cases
 step _ (LeftSection _ _) = Done
 step _ (RightSection _ _) = Done
 step _ (Lit _) = Done

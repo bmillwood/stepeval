@@ -34,12 +34,17 @@ cliMain = do
  exp <- unlines <$> getLines
  case parseExp exp of
   ParseOk e -> forM_ (itereval e) $
-   (>> (hFlush stdout >> getLine)) . putStr . prettyPrint . enparen
+   (>> (hFlush stdout >> getLine)) . putStr . escape . prettyPrint . enparen
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
  where getLines :: IO [String]
        getLines = do
         line <- getLine
         if null line then return [] else (line :) <$> getLines
+       escape = concatMap escapeOne
+       escapeOne '&' = "&amp;"
+       escapeOne '<' = "&lt;"
+       escapeOne '>' = "&gt;"
+       escapeOne c = [c]
 
 cgiMain :: String -> IO ()
 cgiMain qstr = do

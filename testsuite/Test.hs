@@ -33,16 +33,17 @@ runTest (t, b) = handle showEx $ case dropWhile (/= '.') t of
        go (ParseOk e:r@(ParseOk e'):es)
         | e ==> e' = go (r:es)
         | otherwise = failure a b
-        where a = maybe "Nothing" (prettyPrint . squidge) $ stepeval e
-              b = prettyPrint . squidge $ e'
+        where a = maybe "Nothing" (presentable . enparen) $ stepeval e
+              b = presentable e'
+              presentable = prettyPrint . squidge
        go _ = putStrLn $ t ++ ": parse failed!"
        a ==> b = case stepeval a of
         Nothing -> False
-        Just a' -> a' === b
+        Just a' -> enparen a' === b
        a === b = squidge a == squidge b
        paragraphs = foldr p [""] . lines
        p "" bs = "" : bs
        p a ~(b:bs) = (a ++ '\n':b) : bs
-       squidge = deparen . everywhere (mkT deloc)
+       squidge = everywhere (mkT deloc)
        deloc _ = SrcLoc "" 0 0
 

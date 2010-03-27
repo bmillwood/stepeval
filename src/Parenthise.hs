@@ -21,6 +21,7 @@ enparenWithFixities fixes = everywhere (mkT reparen) . deparen
               fp _ = False
               xp (Lambda _ _ _) = True
               xp (InfixApp _ _ _) = True
+              xp (App _ _) = True
               xp _ = False
        reparen e@(InfixApp l p r@(InfixApp _ q _))
         | qf > pf = e

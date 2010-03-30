@@ -184,8 +184,7 @@ step _ (Lit (String (x:xs))) = yield $
  InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
 step _ (Do []) = error "Empty do?"
 step _ (Do [Qualifier e]) = yield e
-step _ (Do [e]) = error $
- "Last statement in a do block must be an expression: " ++ show e
+step _ (Do [_]) = Failure
 step _ (Do (s:ss)) = case s of
  Qualifier e -> yield $ InfixApp e (op ">>") (Do ss)
  Generator s p e -> yield $ InfixApp e (op ">>=")

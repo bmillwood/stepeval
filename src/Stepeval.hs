@@ -1,7 +1,7 @@
 module Stepeval (eval, itereval, printeval, stepeval) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad ((<=<), join)
+import Control.Monad (join)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)

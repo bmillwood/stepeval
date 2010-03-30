@@ -117,7 +117,8 @@ step v e@(App _ _) = magic v e `orE` case argList e of
          app (Match _ _ ps _ (UnGuardedRhs e') (BDecls [])) =
           case matches v ps xs (unArgList . (f :)) of
            Nothing -> Failure
-           Just (Left r) -> Step r
+           Just (Left (Eval e')) -> yield . unArgList $ e' : r
+           Just (Left e) -> Step e
            Just (Right ms) -> yield . unArgList $ applyMatches ms e' : r
            where (xs, r) = splitAt arity es
          app m = todo "step App Var app" m

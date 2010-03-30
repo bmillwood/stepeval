@@ -25,7 +25,7 @@ runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
   [ParseOk i, ParseOk o]
    | ei === o -> success
    | otherwise -> failure (output ei) (output o)
-   where ei = eval i
+   where ei = eval [] i
   rs -> error $ "unexpected test parse result: " ++ show rs
  _ -> return ()
  where success = putStrLn $ t ++ ": success!"
@@ -36,13 +36,13 @@ runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
        go (ParseOk e:r@(ParseOk e'):es)
         | e ==> e' = go (r:es)
         | otherwise = failure a b
-        where a = maybe "Nothing" presentable $ stepeval e
+        where a = maybe "Nothing" presentable $ stepeval [] e
               b = presentable e'
               presentable = output . squidge
        go _ = putStrLn $ t ++ ": parse failed!"
        output | verbose = show | otherwise = prettyPrint
        verbose = elem "-v" args || elem "--verbose" args
-       a ==> b = maybe False (=== b) (stepeval a)
+       a ==> b = maybe False (=== b) (stepeval [] a)
        a === b = squidge a == squidge b
        paragraphs = foldr p [""] . lines
        p "" bs = "" : bs

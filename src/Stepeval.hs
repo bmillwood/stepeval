@@ -1,4 +1,4 @@
-module Stepeval (eval, itereval, printeval, stepeval, stepseval) where
+module Stepeval (eval, itereval, printeval, stepeval) where
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad ((<=<), join)
@@ -31,20 +31,17 @@ import Language.Haskell.Exts (
 
 import Parenthise (enparen)
 
-eval :: Exp -> Exp
-eval = last . itereval
+eval :: Scope -> Exp -> Exp
+eval s = last . itereval s
 
-printeval :: Exp -> IO ()
-printeval = mapM_ (putStrLn . prettyPrint) . itereval
+printeval :: Scope -> Exp -> IO ()
+printeval s = mapM_ (putStrLn . prettyPrint) . itereval s
 
-itereval :: Exp -> [Exp]
-itereval e = e : unfoldr (fmap (join (,)) . stepeval) e
+itereval :: Scope -> Exp -> [Exp]
+itereval s e = e : unfoldr (fmap (join (,)) . stepeval s) e
 
-stepseval :: Int -> Exp -> Maybe Exp
-stepseval n = foldr (<=<) return $ replicate n stepeval
-
-stepeval :: Exp -> Maybe Exp
-stepeval e = case step [] e of
+stepeval :: Scope -> Exp -> Maybe Exp
+stepeval s e = case step [s] e of
  Step (Eval e') -> Just (enparen e')
  _ -> Nothing
 

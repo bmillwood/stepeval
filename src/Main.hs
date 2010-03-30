@@ -27,12 +27,18 @@ main = do
     Just s -> cgiMain s
   _ -> printf "Usage: %s [--version]\n" =<< getProgName
 
+getPrelude :: IO [Decl]
+getPrelude = handle (\e -> return [] `const` (e :: SomeException)) $ do
+ ParseOk (Module _ _ [] Nothing Nothing [] ds) <- parseFile "SEPrelude.hs"
+ return ds
+
 cliMain :: IO ()
 cliMain = do
  putStrLn "Enter a string to parse, terminated by a blank line:"
  exp <- unlines <$> getLines
+ prelude <- getPrelude
  case parseExp exp of
-  ParseOk e -> forM_ (itereval e) $
+  ParseOk e -> forM_ (itereval prelude e) $
    (>> (hFlush stdout >> getLine)) . putStr . prettyPrint
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
  where getLines :: IO [String]
@@ -47,14 +53,17 @@ cgiMain qstr = do
  let exp = case dropWhile (/= '=') qstr of
       _ : v -> unescape v
       "" -> ""
+ prelude <- getPrelude
  putStr . concat $
   ["Content-Type: text/html; charset=UTF-8\n\n",
    "<html>\n<head>\n",
    "<title>" ++ version ++ "</title>\n",
    "<style type=\"text/css\">\n",
    "ol { white-space: pre; font-family: monospace }\n</style>\n",
-   "</head>\n",
-   "<body>\n<form method=\"get\" action=\"\">\n",
+   "</head>\n<body>\n",
+   if null prelude then "" else
+    "<p><a href=\"SEPrelude.hs\">Prelude.hs</a></p>\n",
+   "<form method=\"get\" action=\"\">\n",
    "<textarea rows=\"5\" cols=\"80\" name=\"expr\">",
    exp,
    "</textarea><br>\n",
@@ -62,7 +71,7 @@ cgiMain qstr = do
    "</form>\n"]
  myThreadId >>= forkIO . (threadDelay 500000 >>) . killThread
  unless (null exp) $ case parseExp exp of
-  ParseOk e -> output e `catch` \e -> const
+  ParseOk e -> output prelude e `catch` \e -> const
    (putStrLn "Hard time limit expired! This is probably a bug :(")
    (e :: AsyncException)
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
@@ -73,9 +82,9 @@ cgiMain qstr = do
         _ -> error $ "Failed to parse percent escape: " ++ [a, b]
        unescape (c:cs) = c:unescape cs
        unescape [] = ""
-       output e = do
+       output prelude e = do
         eval <- newEmptyMVar
-        forkIO $ (mapM_ (putMVar eval . Eval) (itereval e) >>
+        forkIO $ (mapM_ (putMVar eval . Eval) (itereval prelude e) >>
          putMVar eval Finished) `catch`
          (\(ErrorCall s) -> putMVar eval (Error s))
         forkIO $ threadDelay 250000 >> putMVar eval Terminated

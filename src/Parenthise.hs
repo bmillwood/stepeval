@@ -18,6 +18,7 @@ enparenWithFixities fixes = everywhere (mkT reparen) . deparen
                | p x = Paren x
                | otherwise = x
               fp (Lambda _ _ _) = True
+              fp (InfixApp _ _ _) = True
               fp _ = False
               xp (Lambda _ _ _) = True
               xp (InfixApp _ _ _) = True

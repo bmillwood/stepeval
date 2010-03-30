@@ -7,6 +7,9 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
+Parethise doesn't respect any fixities it encounters (and uses the prelude
+ones instead, which should be unnecessary)
+
 The testsuite has no means for requiring that evaluation stop at a given
 point.
 

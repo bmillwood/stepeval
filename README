@@ -7,6 +7,10 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
+In function application results aren't always shared as much as they should
+be. Basically evaluation is often non-strict instead of lazy, as in the
+classic example let double x = x + x in double (double 10)
+
 A detached larger environment so that an actually decent library can be
 ticking away behind the scenes. This includes better support for primitive
 operations like arithmetic.
@@ -27,4 +31,9 @@ matches immediately.
 FIXME:
 
 Nested let-scopes aren't properly supported.
+
+If you use an external definitions file, the evaluator doesn't know that
+those definitions can't be changed, so pattern bindings that require
+evaluation may go wrong. This isn't really a big deal though because such
+files are intended mainly for functions, which don't have this problem.
 

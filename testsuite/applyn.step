@@ -1,0 +1,17 @@
+let applyN 0 _ = id
+    applyN 1 f = f
+    applyN n f = f . applyN (n - 1) f
+    f . g = \x -> f (g x)
+ in applyN (2 - 1) (+ 1) 0
+
+let applyN 0 _ = id
+    applyN 1 f = f
+    applyN n f = f . applyN (n - 1) f
+    f . g = \ x -> f (g x)
+  in applyN 1 (+ 1) 0
+
+(+ 1) 0
+
+0 + 1
+
+1

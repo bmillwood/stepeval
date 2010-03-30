@@ -1,0 +1,42 @@
+let map f xs = map' xs
+     where map' [] = []
+           map' (x:xs) = f x : map' xs
+ in map (+ 2) [3,4]
+
+let map' [] = []
+    map' (x:xs) = (+ 2) x : map' xs
+ in map' [3, 4]
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in map' (3 : [4])
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in (+ 2) 3 : map' [4]
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in 3 + 2 : map' [4]
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in 5 : map' [4]
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in 5 : map' (4 : [])
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in 5 : (+ 2) 4 : map' []
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in 5 : 4 + 2 : map' []
+
+let map' [] = []
+    map' (x : xs) = (+ 2) x : map' xs
+  in 5 : 6 : map' []
+
+5 : 6 : []

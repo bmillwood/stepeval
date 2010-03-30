@@ -114,13 +114,17 @@ step v e@(App _ _) = magic v e `orE` case argList e of
    | null . drop (pred arity) $ es -> fallback
    | otherwise -> foldr (orE . app) fallback ms
    where arity = funArity ms
-         app (Match _ _ ps _ (UnGuardedRhs e') (BDecls [])) =
+         app (Match _ _ ps _ (UnGuardedRhs e') bs) =
           case matches v ps xs (unArgList . (f :)) of
            Nothing -> Failure
            Just (Left (Eval e')) -> yield . unArgList $ e' : r
            Just (Left e) -> Step e
-           Just (Right ms) -> yield . unArgList $ applyMatches ms e' : r
+           Just (Right ms) -> yield . mkLet bs ms .
+            unArgList $ applyMatches ms e' : r
            where (xs, r) = splitAt arity es
+                 mkLet (BDecls []) _ = id
+                 mkLet bs@(BDecls _) ms = Let (applyMatches ms bs)
+                 mkLet bs _ = todo "step App Var app mkLet" bs
          app m = todo "step App Var app" m
   Just d -> todo "step App Var" d
   where fallback = liststep v unArgList (f : es)
@@ -464,13 +468,14 @@ unArgList (e:es) = foldl App e es
 unArgList [] = error "unArgList: no expressions"
 
 shadows :: Name -> GenericQ Bool
-shadows n = mkQ False exprS `extQ` altS
+shadows n = mkQ False exprS `extQ` altS `extQ` matchS
  where exprS (Lambda _ ps _) = anywhere (== PVar n) ps
        exprS (Let (BDecls bs) _) = any letS bs
         where letS (PatBind _ p _ _ _) = anywhere (== PVar n) p
               letS _ = False
        exprS _ = False
        altS (Alt _ p _ _) = anywhere (== PVar n) p
+       matchS (Match _ _ ps _ _ _) = anywhere (== PVar n) ps
 
 anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool
 anywhere p = everything (||) (mkQ False p)

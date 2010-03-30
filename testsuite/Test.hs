@@ -7,21 +7,25 @@ import Data.Generics
 import Data.List
 import Language.Haskell.Exts
 import System.Directory
+import System.Environment
 
 import Parenthise
 import Stepeval
 
-main = setCurrentDirectory "testsuite" >> getTests >>= mapM_ runTest
+main = do
+ args <- getArgs
+ setCurrentDirectory "testsuite"
+ getTests >>= mapM_ (runTest args)
 
 getTests = sort <$> getDirectoryContents "." >>= filterM doesFileExist >>=
  mapM (\t -> ((,) t) <$> readFile t)
 
-runTest (t, b) = handle showEx $ case dropWhile (/= '.') t of
+runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
  ".step" -> go . map parseExp $ paragraphs b
  ".eval" -> case map parseExp $ paragraphs b of
   [ParseOk i, ParseOk o]
    | eval ei === o -> success
-   | otherwise -> failure (prettyPrint ei) (prettyPrint o)
+   | otherwise -> failure (output ei) (output o)
    where ei = eval i
   rs -> error $ "unexpected test parse result: " ++ show rs
  _ -> return ()
@@ -35,8 +39,10 @@ runTest (t, b) = handle showEx $ case dropWhile (/= '.') t of
         | otherwise = failure a b
         where a = maybe "Nothing" (presentable . enparen) $ stepeval e
               b = presentable e'
-              presentable = prettyPrint . squidge
+              presentable = output . squidge
        go _ = putStrLn $ t ++ ": parse failed!"
+       output | verbose = show | otherwise = prettyPrint
+       verbose = elem "-v" args || elem "--verbose" args
        a ==> b = case stepeval a of
         Nothing -> False
         Just a' -> enparen a' === b

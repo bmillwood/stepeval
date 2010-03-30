@@ -9,7 +9,6 @@ import Language.Haskell.Exts
 import System.Directory
 import System.Environment
 
-import Parenthise
 import Stepeval
 
 main = do
@@ -37,15 +36,13 @@ runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
        go (ParseOk e:r@(ParseOk e'):es)
         | e ==> e' = go (r:es)
         | otherwise = failure a b
-        where a = maybe "Nothing" (presentable . enparen) $ stepeval e
+        where a = maybe "Nothing" presentable $ stepeval e
               b = presentable e'
               presentable = output . squidge
        go _ = putStrLn $ t ++ ": parse failed!"
        output | verbose = show | otherwise = prettyPrint
        verbose = elem "-v" args || elem "--verbose" args
-       a ==> b = case stepeval a of
-        Nothing -> False
-        Just a' -> enparen a' === b
+       a ==> b = maybe False (=== b) (stepeval a)
        a === b = squidge a == squidge b
        paragraphs = foldr p [""] . lines
        p "" bs = "" : bs

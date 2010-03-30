@@ -29,6 +29,8 @@ import Language.Haskell.Exts (
  prettyPrint
  )
 
+import Parenthise (enparen)
+
 eval :: Exp -> Exp
 eval = last . itereval
 
@@ -43,7 +45,7 @@ stepseval n = foldr (<=<) return $ replicate n stepeval
 
 stepeval :: Exp -> Maybe Exp
 stepeval e = case step [] e of
- Step (Eval e') -> Just e'
+ Step (Eval e') -> Just (enparen e')
  _ -> Nothing
 
 -- Sometimes evaluating a subexpression means evaluating an outer expression

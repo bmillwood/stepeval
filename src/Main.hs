@@ -7,7 +7,6 @@ import Control.Monad
 import Data.Char
 import Language.Haskell.Exts
 import Numeric
-import Parenthise (enparen)
 import Prelude hiding (catch)
 import Stepeval
 import System.Environment
@@ -34,7 +33,7 @@ cliMain = do
  exp <- unlines <$> getLines
  case parseExp exp of
   ParseOk e -> forM_ (itereval e) $
-   (>> (hFlush stdout >> getLine)) . putStr . prettyPrint . enparen
+   (>> (hFlush stdout >> getLine)) . putStr . prettyPrint
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
  where getLines :: IO [String]
        getLines = do
@@ -90,7 +89,7 @@ cgiMain qstr = do
          Terminated -> putStrLn $ "<li>Time limit expired!</li>"
          Error s -> putStrLn $ "<li>" ++ s ++ "</li>"
          Eval e -> putStrLn ("<li>" ++ pp e ++ "</li>") >> outputOne eval
-          where pp = concatMap escape . prettyPrint . enparen
+          where pp = concatMap escape . prettyPrint
        escape '&' = "&amp;"
        escape '<' = "&lt;"
        escape '>' = "&gt;"

@@ -23,7 +23,7 @@ runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
  ".step" -> go . map parseExp $ paragraphs b
  ".eval" -> case map parseExp $ paragraphs b of
   [ParseOk i, ParseOk o]
-   | eval ei === o -> success
+   | ei === o -> success
    | otherwise -> failure (output ei) (output o)
    where ei = eval i
   rs -> error $ "unexpected test parse result: " ++ show rs
@@ -47,6 +47,5 @@ runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
        paragraphs = foldr p [""] . lines
        p "" bs = "" : bs
        p a ~(b:bs) = (a ++ '\n':b) : bs
-       squidge = everywhere (mkT deloc)
-       deloc _ = SrcLoc "" 0 0
+       squidge = everywhere (mkT . const $ SrcLoc "" 0 0)
 

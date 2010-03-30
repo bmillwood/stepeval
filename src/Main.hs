@@ -29,8 +29,11 @@ main = do
 
 getPrelude :: IO [Decl]
 getPrelude = handle (\e -> return [] `const` (e :: SomeException)) $ do
- ParseOk (Module _ _ [] Nothing Nothing [] ds) <- parseFile "SEPrelude.hs"
+ ParseOk (Module _ _ [] Nothing Nothing [] ds) <- parseFile preludeFile
  return ds
+
+preludeFile :: FilePath
+preludeFile = "Prelude.txt"
 
 cliMain :: IO ()
 cliMain = do
@@ -62,7 +65,7 @@ cgiMain qstr = do
    "ol { white-space: pre; font-family: monospace }\n</style>\n",
    "</head>\n<body>\n",
    if null prelude then "" else
-    "<p><a href=\"SEPrelude.hs\">Prelude.hs</a></p>\n",
+    "<p><a href=\"" ++ preludeFile ++ "\">Prelude</a></p>\n",
    "<form method=\"get\" action=\"\">\n",
    "<textarea rows=\"5\" cols=\"80\" name=\"expr\">",
    exp,

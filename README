@@ -7,6 +7,9 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
+The testsuite has no means for requiring that evaluation stop at a given
+point.
+
 In function application results aren't always shared as much as they should
 be. Basically evaluation is often non-strict instead of lazy, as in the
 classic example let double x = x + x in double (double 10)

@@ -107,8 +107,8 @@ step v e@(App _ _) = magic v e `orE` case argList e of
                    foldMap (Set.fromList . freeNames . snd) $ ms
         applyLambda _ _ = error "not a lambda!"
  f@(Var q) : es -> case envLookup v (fromQName q) of
-  Nothing -> fallback
-  Just (PatBind _ _ _ _ _) -> fallback
+  Nothing -> Done
+  Just (PatBind _ _ _ _ _) -> (\f' -> unArgList (f' : es)) |$| step v f
   Just (FunBind ms)
    | null . drop (pred arity) $ es -> fallback
    | otherwise -> foldr (orE . app) fallback ms

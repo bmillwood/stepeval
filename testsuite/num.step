@@ -1,0 +1,9 @@
+case 2 - 1 of
+ 1 -> True
+ _ -> False
+
+case 1 of
+ 1 -> True
+ _ -> False
+
+True

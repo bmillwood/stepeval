@@ -400,8 +400,8 @@ patternMatch v p (Var q) = case envLookup v (fromQName q) of
 -- Translate infix cases to prefix cases for simplicity
 -- I need to stop doing this at some point
 patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s
-patternMatch v p (InfixApp a n b) = case n of
- QVarOp n -> peval $ need v (fromQName n)
+patternMatch v p e@(InfixApp a n b) = case n of
+ QVarOp _ -> peval $ step v e
  QConOp q -> patternMatch v p (App (App (Con q) a) b)
 -- Literal match
 patternMatch _ (PLit p) (Lit q)

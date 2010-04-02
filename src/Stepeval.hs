@@ -1,7 +1,7 @@
 module Stepeval (eval, itereval, printeval, stepeval) where
 
 import Control.Applicative ((<$>), (<*>))
-import Control.Monad (join)
+import Control.Monad (join, replicateM)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
@@ -356,17 +356,15 @@ applyMatches ms x = recurse `extT` replaceOne $ x
 
 alpha :: Name -> [Name] -> GenericT
 alpha n avoid =
- -- note infinite list, so find cannot give Nothing
- let Just m = find (`notElem` avoid)
-      (n : map (\i -> withName (++ show i) n) [1 ..])
+ -- genNames produces an infinite list, so find cannot give Nothing
+ let Just m = find (`notElem` avoid) $ case n of
+      Ident i -> map Ident $ genNames i ['0' .. '9'] [1 ..]
+      Symbol s -> map Symbol $ genNames s "!?*#+&$%@." [1 ..]
   in everywhereBut (shadows n) (mkT $ replaceOne n m)
- where replaceOne :: Name -> Name -> Name -> Name
+ where genNames n xs ~(i:is) =
+        map (n ++) (replicateM i xs) ++ genNames n xs is
        replaceOne n m r | n == r = m
        replaceOne _ _ r = r
-
-withName :: (String -> String) -> Name -> Name
-withName f (Ident n) = Ident (f n)
-withName f (Symbol n) = Symbol (f n)
 
 isFreeIn :: Name -> GenericQ Bool
 isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))

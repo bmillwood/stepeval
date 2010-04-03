@@ -395,7 +395,11 @@ patternMatch _ (PVar n) x = pmatch [(n, x)]
 -- Variables will need to be substituted if they still haven't matched
 patternMatch v p (Var q) = case envLookup v (fromQName q) of
  Nothing -> Nothing
- Just (PatBind _ _ _ (UnGuardedRhs e) _) -> patternMatch v p e
+ Just (PatBind s q t (UnGuardedRhs e) bs) -> case patternMatch v p e of
+  Just (Left (Eval e')) ->
+   Just (Left (EnvEval (PatBind s q t (UnGuardedRhs e') bs)))
+  Just (Right _) -> Just (Left (Eval e))
+  r -> r
  Just (FunBind _) -> Nothing -- functions can only match trivial patterns
  Just l -> todo "patternMatch Var" l
 -- Translate infix cases to prefix cases for simplicity

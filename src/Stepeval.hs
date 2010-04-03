@@ -317,6 +317,7 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
  (_, []) -> Nothing
  (h, _ : t) -> Just $ h ++ p : t
  where match (PatBind _ (PVar m) _ _ _) = n == m
+       match (FunBind _) = False
        match d = todo "updateBind match" d
 updateBind l _ = todo "updateBind" l
 

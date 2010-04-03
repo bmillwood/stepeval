@@ -2,15 +2,15 @@ let applyN 0 _ = id
     applyN 1 f = f
     applyN n f = f . applyN (n - 1) f
     f . g = \x -> f (g x)
- in let n = 2 - 1
-     in applyN n (+ 1) 0
+    n = 2 - 1
+ in applyN n (+ 1) 0
 
 let applyN 0 _ = id
     applyN 1 f = f
     applyN n f = f . applyN (n - 1) f
     f . g = \x -> f (g x)
- in let n = 1
-     in applyN n (+ 1) 0
+    n = 1
+ in applyN n (+ 1) 0
 
 let applyN 0 _ = id
     applyN 1 f = f

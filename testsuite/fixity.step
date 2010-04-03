@@ -1,0 +1,59 @@
+let (+*) = (+)
+    infixr 5 +*
+    (*+) = (+)
+    infixr 4 *+
+    (/\) = (+)
+    infixl 4 /\
+    x = 3 +* 4
+    y = (x /\ 3 +* 2) *+ x
+ in y
+
+let (+*) = (+)
+    infixr 5 +*
+    (/\) = (+)
+    infixl 4 /\
+    x = 3 +* 4
+    y = (x /\ 3 +* 2) + x
+  in y
+
+let (+*) = (+)
+    infixr 5 +*
+    x = 3 +* 4
+    y = x + (3 +* 2) + x
+  in y
+
+let (+*) = (+)
+    infixr 5 +*
+    x = 3 + 4
+    y = x + (3 +* 2) + x
+  in y
+
+let (+*) = (+)
+    infixr 5 +*
+    x = 7
+    y = x + (3 +* 2) + x
+  in y
+
+let (+*) = (+)
+    infixr 5 +*
+    x = 7
+    y = 7 + (3 +* 2) + x
+  in y
+
+let x = 7
+    y = 7 + (3 + 2) + x
+  in y
+
+let x = 7
+    y = 7 + 5 + x
+  in y
+
+let x = 7
+    y = 12 + x
+  in y
+
+let y = 12 + 7 in y
+
+let y = 19 in y
+
+19

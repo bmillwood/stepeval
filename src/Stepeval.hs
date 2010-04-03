@@ -12,13 +12,14 @@ import qualified Data.Set as Set (fromList, toList)
 import Language.Haskell.Exts (
  Alt (Alt),
  Binds (BDecls),
- Decl (PatBind, FunBind),
+ Decl (PatBind, FunBind, InfixDecl),
  Exp (App, Case, Con, Do, If, InfixApp, Lambda, LeftSection,
   Let, List, Lit, Paren, RightSection, Tuple, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
  Literal (Char, Frac, Int, String),
  Match (Match),
+ Op (ConOp, VarOp),
  Pat (PApp, PInfixApp, PList, PLit, PParen, PTuple, PVar, PWildCard),
  Name (Ident, Symbol),
  QName (Special, UnQual),
@@ -26,10 +27,11 @@ import Language.Haskell.Exts (
  Rhs (UnGuardedRhs),
  SpecialCon (Cons),
  Stmt (Generator, LetStmt, Qualifier),
+ preludeFixities,
  prettyPrint
  )
 
-import Parenthise (enparen)
+import Parenthise (deparen, enparenWith)
 
 eval :: Scope -> Exp -> Exp
 eval s = last . itereval s
@@ -42,7 +44,7 @@ itereval s e = e : unfoldr (fmap (join (,)) . stepeval s) e
 
 stepeval :: Scope -> Exp -> Maybe Exp
 stepeval s e = case step [s] e of
- Step (Eval e') -> Just (enparen e')
+ Step (Eval e') -> Just (enparenWith preludeFixities . deparen $ e')
  _ -> Nothing
 
 -- Sometimes evaluating a subexpression means evaluating an outer expression
@@ -258,8 +260,13 @@ tidyBinds e v = let keep = go (usedIn e) v in filter (`elem` keep) v
         (ys, xs) -> ys ++ go ((||) <$> p <*> usedIn ys) xs
        binds (PatBind _ (PVar n) _ _ _) = [n]
        binds (FunBind ms) = [funName ms]
+       -- FIXME: an InfixDecl can specify multiple ops, and we keep all or
+       -- none - should drop the ones we no longer need
+       binds (InfixDecl _ _ _ os) = map unOp os
        binds l = todo "tidyBinds binds" l
        usedIn es d = any (\n -> isFreeIn n es) (binds d)
+       unOp (VarOp n) = n
+       unOp (ConOp n) = n
 
 need :: Env -> Name -> EvalStep
 need v n = case envBreak match v of
@@ -275,6 +282,7 @@ need v n = case envBreak match v of
   b -> todo "need case" b
  where match (PatBind _ (PVar m) _ _ _) = m == n
        match (FunBind ms) = funName ms == n
+       match (InfixDecl _ _ _ _) = False
        match l = todo "need match" l
 
 funName :: [Match] -> Name
@@ -318,6 +326,7 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
  (h, _ : t) -> Just $ h ++ p : t
  where match (PatBind _ (PVar m) _ _ _) = n == m
        match (FunBind _) = False
+       match (InfixDecl _ _ _ _) = False
        match d = todo "updateBind match" d
 updateBind l _ = todo "updateBind" l
 
@@ -327,6 +336,7 @@ envLookup v n = case envBreak match v of
  (_, _, c : _, _) -> Just c
  where match (PatBind _ (PVar m) _ _ _) = m == n
        match (FunBind ms) = funName ms == n
+       match (InfixDecl _ _ _ _) = False
        match l = todo "envLookup match" l
 
 envBreak :: (a -> Bool) -> [[a]] -> ([[a]], [a], [a], [[a]])

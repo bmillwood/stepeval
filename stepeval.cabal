@@ -24,7 +24,6 @@ License-file: LICENSE
 
 Build-type:         Simple
 Tested-with:        GHC == 6.8.2, GHC == 6.12.1
-Stability:          None
 Extra-source-files: testsuite/*.step testsuite/*.eval
 
 Flag old

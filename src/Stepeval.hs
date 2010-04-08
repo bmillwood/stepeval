@@ -134,24 +134,26 @@ step v e@(InfixApp p o q) = case o of
   InfixApp p o |$| step v q
 -- Case
 step _ (Case _ []) = error "Case with no branches?"
-step v (Case e alts@(Alt l p a (BDecls []) : as)) =
+step v (Case e alts@(Alt l p a bs@(BDecls ds) : as)) =
  case patternMatch v p e of
   Just (Right rs) -> case a of
-   UnGuardedAlt x -> yield (applyMatches rs x)
-   GuardedAlts (GuardedAlt m ss x : gs) -> case ss of
+   UnGuardedAlt x -> yield . applyMatches rs $ mkLet ds x
+   -- here we apply the matches over all the guard bodies, which may not
+   -- always have the most intuitive results
+   GuardedAlts (GuardedAlt m ss x : gs) -> case applyMatches rs ss of
     [] -> error "GuardedAlt with no body?"
     [Qualifier (Con (UnQual (Ident s)))]
-     | s == "True" -> yield (applyMatches rs x)
+     | s == "True" -> yield . applyMatches rs $ mkLet ds x
      | s == "False" -> if null gs
        -- no more guards, drop this alt
        then if not (null as) then yield $ Case e as else Failure
        -- drop this guard and move to the next
        else yield $ mkCase (GuardedAlts gs)
      | otherwise -> Failure
-    [Qualifier q] -> mkCase . newAlt |$| step v q
+    [Qualifier q] -> mkCase . newAlt |$| step (ds:v) q
     a -> todo "step Case GuardedAlts" a
     where newAlt q = GuardedAlts (GuardedAlt m [Qualifier q] x : gs)
-          mkCase a = Case e (Alt l p a (BDecls []) : as)
+          mkCase a = Case e (Alt l p a bs : as)
    GuardedAlts [] -> error "Case branch with no expression?"
   Just (Left e) -> case e of
    Eval e' -> yield $ Case e' alts
@@ -215,8 +217,9 @@ liststep v f es = go es id
           r -> r
 
 mkLet :: Scope -> Exp -> Exp
-mkLet [] x = x
-mkLet ds x = Let (BDecls (tidyBinds x ds)) x
+mkLet ds x = case tidyBinds x ds of
+ [] -> x
+ ds' -> Let (BDecls ds') x
 
 -- This code isn't very nice, largely because I anticipate it all being
 -- replaced eventually anyway.

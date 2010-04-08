@@ -1,0 +1,11 @@
+case 2 of
+ x | x == 2 -> 3
+   | otherwise -> 4
+  where otherwise = True
+
+case 2 of
+ x | True -> 3
+   | otherwise -> 4
+  where otherwise = True
+
+3

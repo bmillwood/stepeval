@@ -115,17 +115,14 @@ step v e@(App _ _) = magic v e `orE` case argList e of
    | null . drop (pred arity) $ es -> fallback
    | otherwise -> foldr (orE . app) fallback ms
    where arity = funArity ms
-         app (Match _ _ ps _ (UnGuardedRhs e') bs) =
+         app (Match _ _ ps _ (UnGuardedRhs e') (BDecls ds)) =
           case matches v ps xs (unArgList . (f :)) of
            Nothing -> Failure
            Just (Left (Eval e')) -> yield . unArgList $ e' : r
            Just (Left e) -> Step e
-           Just (Right ms) -> yield . mkLet bs ms .
-            unArgList $ applyMatches ms e' : r
+           Just (Right ms) -> yield . applyMatches ms . mkLet ds .
+            unArgList $ e' : r
            where (xs, r) = splitAt arity es
-                 mkLet (BDecls []) _ = id
-                 mkLet bs@(BDecls _) ms = Let (applyMatches ms bs)
-                 mkLet bs _ = todo "step App Var app mkLet" bs
          app m = todo "step App Var app" m
   Just d -> todo "step App Var" d
   where fallback = liststep v unArgList (f : es)
@@ -216,6 +213,10 @@ liststep v f es = go es id
           Step (Eval e') -> yield . f . g $ e':es
           Done -> go es (g . (e:))
           r -> r
+
+mkLet :: Scope -> Exp -> Exp
+mkLet [] x = x
+mkLet ds x = Let (BDecls (tidyBinds x ds)) x
 
 -- This code isn't very nice, largely because I anticipate it all being
 -- replaced eventually anyway.
@@ -403,7 +404,12 @@ patternMatch v p (Paren x) = patternMatch v p x
 -- Patterns that always match
 patternMatch _ (PWildCard) _ = pmatch []
 patternMatch _ (PVar n) x = pmatch [(n, x)]
--- Variables will need to be substituted if they still haven't matched
+-- Let-expressions should skip right to the interesting bit
+patternMatch v p (Let (BDecls ds) x) = case patternMatch (ds:v) p x of
+ Just (Left (Eval e)) -> Just . Left . Eval $ mkLet ds e
+ r -> r
+patternMatch _ _ (Let bs _) = todo "patternMatch Let" bs
+-- Variables can only match trivial patterns
 patternMatch v p (Var q) = case envLookup v (fromQName q) of
  Nothing -> Nothing
  Just (PatBind s q t (UnGuardedRhs e) bs) -> case patternMatch v p e of
@@ -411,7 +417,7 @@ patternMatch v p (Var q) = case envLookup v (fromQName q) of
    Just (Left (EnvEval (PatBind s q t (UnGuardedRhs e') bs)))
   Just (Right _) -> Just (Left (Eval e))
   r -> r
- Just (FunBind _) -> Nothing -- functions can only match trivial patterns
+ Just (FunBind _) -> Nothing
  Just l -> todo "patternMatch Var" l
 -- Translate infix cases to prefix cases for simplicity
 -- I need to stop doing this at some point

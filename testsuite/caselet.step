@@ -1,0 +1,9 @@
+case let x = 7; y = (4, x) in (2, y) of
+ (2, (_, _)) -> True
+ _ -> False
+
+case let x = 7 in (2, (4, x)) of
+ (2, (_, _)) -> True
+ _ -> False
+
+True

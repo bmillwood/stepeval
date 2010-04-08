@@ -115,6 +115,7 @@ step v e@(App _ _) = magic v e `orE` case argList e of
    | null . drop (pred arity) $ es -> fallback
    | otherwise -> foldr (orE . app) fallback ms
    where arity = funArity ms
+         (xs, r) = splitAt arity es
          app (Match _ _ ps _ (UnGuardedRhs e') (BDecls ds)) =
           case matches v ps xs (unArgList . (f :)) of
            Nothing -> Failure
@@ -122,7 +123,6 @@ step v e@(App _ _) = magic v e `orE` case argList e of
            Just (Left e) -> Step e
            Just (Right ms) -> yield . applyMatches ms . mkLet ds .
             unArgList $ e' : r
-           where (xs, r) = splitAt arity es
          app m = todo "step App Var app" m
   Just d -> todo "step App Var" d
   where fallback = liststep v unArgList (f : es)

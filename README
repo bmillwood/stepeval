@@ -7,32 +7,26 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
-Parethise doesn't respect any fixities it encounters (and uses the prelude
-ones instead, which should be unnecessary)
-
 The testsuite has no means for requiring that evaluation stop at a given
 point.
 
-In function application results aren't always shared as much as they should
+In function application, results aren't always shared as much as they should
 be. Basically evaluation is often non-strict instead of lazy, as in the
 classic example let double x = x + x in double (double 10)
 
-A detached larger environment so that an actually decent library can be
-ticking away behind the scenes. This includes better support for primitive
-operations like arithmetic.
+Better support for primitive operations like arithmetic. This may be related
+to class instance resolution.
 
-Polymorphism?
+EnumFrom syntax is not at all supported
+
+Type inference would be nice, to resolve class instances.
+
+It would be nice to have a UI in which one could easily change either the
+expression to be stepped or the environment it is being stepped in.
 
 Everywhere in the program I have emphasised correctness and simplicity of
 code over performance. In a lot of small ways and a few big ones the
 efficiency of the algorithms involved is much poorer than it needs to be.
-
-Pattern matching can see deep into bindings, which may make how it found
-a match non-obvious. For example:
-let x = 1 : x in
-  case x of
-      _ : _ : _ : _ : _ -> True
-matches immediately.
 
 FIXME:
 

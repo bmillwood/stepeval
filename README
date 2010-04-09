@@ -1,4 +1,16 @@
-Contact haskell at benmachine dot co dot uk or via IRC benmachine on Freenode
+stepeval is a tool that can operate as a command-line utility or CGI script.
+In either case, it is given a Haskell expression in string form, applies a
+single evaluation operation (e.g. pattern matching, lambda application), and
+prints the result, while also feeding it back into its evaluation mechanism
+until the expression cannot be evaluated any further, or in the case of the
+CGI script a time limit has expired.
+
+Contact: haskell at benmachine dot co dot uk
+ or via IRC: benmachine on Freenode or QuakeNet
+
+If you want to see things in action without downloading anything, try
+http://www.srcf.ucam.org/~bm380/cgi-bin/stepeval.cgi
+where an example instance of the CGI script is usually running.
 
 BUILD NOTES:
 

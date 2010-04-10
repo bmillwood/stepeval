@@ -40,7 +40,7 @@ Executable stepeval
  if flag(old)
   Build-Depends: base >= 3 && < 4
  else 
-  Build-Depends: base >= 4 && < 4.3, syb < 0.2
+  Build-Depends: base >= 4 && < 4.3, syb < 0.3
 
  GHC-Options:    -W
  Hs-Source-Dirs: src
@@ -54,7 +54,7 @@ Executable test
   if flag(old)
    Build-Depends: base >= 3 && < 4, directory < 1.1
   else
-   Build-Depends: base >= 4 && < 4.3, directory < 1.1, syb < 0.2 
+   Build-Depends: base >= 4 && < 4.3, directory < 1.1, syb < 0.3
   GHC-Options:    -W
   Hs-Source-Dirs: src testsuite
   Other-Modules:  Stepeval, Parenthise

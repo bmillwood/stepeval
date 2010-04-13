@@ -23,6 +23,14 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
+patternMatch needs an ADT, and needs to specify how to reintroduce a match
+into the original expression, so we can force parts of a pattern neatly.
+
+I need to think about how function application is done. Problem is we can't
+easily show how guards are stepped through etc. because we can't modify the
+original definition. Perhaps we introduce the funbind to a local let binding
+and then modify that.
+
 The testsuite has no means for requiring that evaluation stop at a given
 point.
 

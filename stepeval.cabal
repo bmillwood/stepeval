@@ -35,12 +35,12 @@ Flag test
  Default:     False
 
 Executable stepeval
- Build-Depends: containers < 0.4, extensible-exceptions < 0.2,
-                haskell-src-exts < 1.9
+ Build-Depends: containers >= 0.1 && < 0.4, extensible-exceptions == 0.1.*,
+                haskell-src-exts >= 1.6 && < 1.9
  if flag(old)
   Build-Depends: base >= 3 && < 4
  else 
-  Build-Depends: base >= 4 && < 4.3, syb < 0.3
+  Build-Depends: base >= 4 && < 4.3, syb >= 0.1 && < 0.3
 
  GHC-Options:    -W
  Hs-Source-Dirs: src
@@ -52,9 +52,9 @@ Executable test
 
  if flag(test)
   if flag(old)
-   Build-Depends: base >= 3 && < 4, directory < 1.1
+   Build-Depends: base >= 3 && < 4, directory == 1.0.*
   else
-   Build-Depends: base >= 4 && < 4.3, directory < 1.1, syb < 0.3
+   Build-Depends: base >= 4 && < 4.3, directory == 1.0.*, syb >= 0.1 && < 0.3
   GHC-Options:    -W
   Hs-Source-Dirs: src testsuite
   Other-Modules:  Stepeval, Parenthise

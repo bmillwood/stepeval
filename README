@@ -14,6 +14,10 @@ where an example instance of the CGI script is usually running.
 
 BUILD NOTES:
 
+The version constraints are conservative - only things that I've personally
+tested with. If you are told your version of whatever doesn't fit into them,
+relax them; if it works, tell me!
+
 On base-4, it requires very little to drop the extensible-exceptions
 dependency, just drop the .Extensible from the imports.
 

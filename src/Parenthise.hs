@@ -83,11 +83,3 @@ isIApp _ = False
 isApp (App _ _) = True
 isApp _ = False
 
--- this is entirely silly
-instance Num Exp where
- x + y = InfixApp x (QVarOp (UnQual (Symbol "+"))) y
- x * y = InfixApp x (QVarOp (UnQual (Symbol "*"))) y
- abs x = App (Var (UnQual (Ident "abs"))) x
- signum x = App (Var (UnQual (Ident "signum"))) x
- fromInteger = Lit . Int
-

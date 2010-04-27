@@ -23,8 +23,9 @@ dependency, just drop the .Extensible from the imports.
 
 TODO:
 
-patternMatch needs an ADT, and needs to specify how to reintroduce a match
-into the original expression, so we can force parts of a pattern neatly.
+In recent times there's been a tiny little tendency to prop up the old
+architecture in the interests of avoiding radical restructurings. As a
+result some design decisions need serious re-examination.
 
 I need to think about how function application is done. Problem is we can't
 easily show how guards are stepped through etc. because we can't modify the

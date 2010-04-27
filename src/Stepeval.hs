@@ -1,7 +1,7 @@
 module Stepeval (eval, itereval, printeval, stepeval) where
 
-import Control.Applicative ((<$>), (<*>))
-import Control.Monad (join, replicateM)
+import Control.Applicative ((<$), (<$>), (<*>), (<|>))
+import Control.Monad (guard, join, replicateM)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe)
@@ -14,7 +14,7 @@ import Language.Haskell.Exts (
  Binds (BDecls),
  Decl (PatBind, FunBind, InfixDecl),
  Exp (App, Case, Con, Do, If, InfixApp, Lambda, LeftSection,
-  Let, List, Lit, Paren, RightSection, Tuple, Var),
+  Let, List, Lit, Paren, RightSection, Tuple, Var, XPcdata),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
  Literal (Char, Frac, Int, String),
@@ -26,6 +26,7 @@ import Language.Haskell.Exts (
  QOp (QConOp, QVarOp),
  Rhs (UnGuardedRhs),
  SpecialCon (Cons),
+ SrcLoc (SrcLoc),
  Stmt (Generator, LetStmt, Qualifier),
  preludeFixities,
  prettyPrint
@@ -52,9 +53,44 @@ data Eval = EnvEval Decl | Eval Exp
  deriving Show
 data EvalStep = Failure | Done | Step Eval
  deriving Show
-type MatchResult = Either Eval [(Name, Exp)]
+-- NoMatch is outright failure
+-- MatchEval indicates that evaluation was necessary to make the match
+data PatternMatch = NoMatch | MatchEval Eval | Matched [MatchResult]
+ deriving Show
+-- The Exp -> Exp should reconstruct the original expression
+-- matched against. This is essential sometimes to step a specific part of a
+-- large expression
+data MatchResult = MatchResult Name Exp (Exp -> Exp)
 type Scope = [Decl]
 type Env = [Scope]
+
+-- Involves an evil hack, but only useful for debugging anyway.
+instance Show MatchResult where
+ showsPrec p (MatchResult n e f) = showParen (p >= 11) $
+  showString "MatchResult " . showN . sp . showE . sp . showF
+  where sp = showString " "
+        showN = showsPrec 11 n
+        showE = showsPrec 11 e
+        showF = showParen True $ showString "\\arg -> " . fixPcdata .
+         shows (f (XPcdata "arg"))
+        fixPcdata s = case break (`elem` "(X") s of
+         (r, "") -> r
+         (r, '(':s') -> r ++ dropEq s' "XPcdata \"arg\")" ('(':)
+         (r, 'X':s') -> r ++ dropEq s' "Pcdata \"arg\"" ('X':)
+         _ -> s
+        dropEq s "" _ = "arg" ++ fixPcdata s
+        dropEq (x:xs) (d:ds) f
+         | x == d = dropEq xs ds (f . (x:))
+        dropEq s _ f = f (fixPcdata s)
+
+unMatchResult :: (Name -> Exp -> (Exp -> Exp) -> b) -> MatchResult -> b
+unMatchResult g (MatchResult n e f) = g n e f
+
+mrName :: MatchResult -> Name
+mrName = unMatchResult $ \n _ _ -> n
+
+mrExp :: MatchResult -> Exp
+mrExp = unMatchResult $ \_ e _ -> e
 
 liftE :: (Exp -> Exp) -> EvalStep -> EvalStep
 liftE f (Step (Eval e)) = Step (Eval (f e))
@@ -84,10 +120,10 @@ step v e@(App _ _) = magic v e `orE` case argList e of
         applyLambda f [] = yield f
         applyLambda (Lambda s ps@(p:qs) e) (x:xs) =
          case patternMatch v p x of
-          Nothing -> Failure
-          Just (Left r) ->
+          NoMatch -> Failure
+          MatchEval r ->
            (\x -> unArgList $ Lambda s ps e : x : xs) |$| Step r
-          Just (Right ms) -> case qs of
+          Matched ms -> case qs of
            [] -> yield $ unArgList (applyMatches ms e : xs)
            qs
             | anywhere (`elem` mnames) qs ->
@@ -106,7 +142,7 @@ step v e@(App _ _) = magic v e `orE` case argList e of
                    (freeNames qs)
                   lnames = freeNames ps ++ freeNames e
                   mnames = Set.toList .
-                   foldMap (Set.fromList . freeNames . snd) $ ms
+                   foldMap (Set.fromList . freeNames . mrExp) $ ms
         applyLambda _ _ = error "not a lambda!"
  f@(Var q) : es -> case envLookup v (fromQName q) of
   Nothing -> Done
@@ -118,10 +154,10 @@ step v e@(App _ _) = magic v e `orE` case argList e of
          (xs, r) = splitAt arity es
          app (Match _ _ ps _ (UnGuardedRhs e') (BDecls ds)) =
           case matches v ps xs (unArgList . (f :)) of
-           Nothing -> Failure
-           Just (Left (Eval e')) -> yield . unArgList $ e' : r
-           Just (Left e) -> Step e
-           Just (Right ms) -> yield . applyMatches ms . mkLet ds .
+           NoMatch -> Failure
+           MatchEval (Eval e') -> yield . unArgList $ e' : r
+           MatchEval e -> Step e
+           Matched ms -> yield . applyMatches ms . mkLet ds .
             unArgList $ e' : r
          app m = todo "step App Var app" m
   Just d -> todo "step App Var" d
@@ -136,11 +172,11 @@ step v e@(InfixApp p o q) = case o of
 step _ (Case _ []) = error "Case with no branches?"
 step v (Case e alts@(Alt l p a bs@(BDecls ds) : as)) =
  case patternMatch v p e of
-  Just (Right rs) -> case a of
+  Matched rs -> case a of
    UnGuardedAlt x -> yield . applyMatches rs $ mkLet ds x
    -- here we apply the matches over all the guard bodies, which may not
    -- always have the most intuitive results
-   GuardedAlts (GuardedAlt m ss x : gs) -> case applyMatches rs ss of
+   GuardedAlts (GuardedAlt m ss x : gs) -> case ss of
     [] -> error "GuardedAlt with no body?"
     [Qualifier (Con (UnQual (Ident s)))]
      | s == "True" -> yield . applyMatches rs $ mkLet ds x
@@ -150,15 +186,21 @@ step v (Case e alts@(Alt l p a bs@(BDecls ds) : as)) =
        -- drop this guard and move to the next
        else yield $ mkCase (GuardedAlts gs)
      | otherwise -> Failure
-    [Qualifier q] -> mkCase . newAlt |$| step (ds:v) q
+    [Qualifier q] -> case step (matchesToScope rs:ds:v) q of
+     Step (Eval q') -> yield . mkCase . newAlt $ q'
+     r@(Step (EnvEval (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])))) ->
+      case mlookup n rs of
+       Nothing -> r
+       Just (MatchResult _ _ r) -> yield $ Case (r e) alts
+     r -> r
     a -> todo "step Case GuardedAlts" a
     where newAlt q = GuardedAlts (GuardedAlt m [Qualifier q] x : gs)
           mkCase a = Case e (Alt l p a bs : as)
    GuardedAlts [] -> error "Case branch with no expression?"
-  Just (Left e) -> case e of
+  MatchEval e -> case e of
    Eval e' -> yield $ Case e' alts
    r -> Step r
-  Nothing
+  NoMatch
    | null as -> Failure
    | otherwise -> yield $ Case e as
 step _ e@(Case _ _) = todo "step Case" e
@@ -221,6 +263,15 @@ mkLet ds x = case tidyBinds x ds of
  [] -> x
  ds' -> Let (BDecls ds') x
 
+matchesToScope :: [MatchResult] -> Scope
+matchesToScope = map $ \(MatchResult n e _) ->
+ PatBind nowhere (PVar n) Nothing (UnGuardedRhs e) (BDecls [])
+
+-- this shouldn't really exist
+nowhere :: SrcLoc
+nowhere = undefined
+-- nowhere = SrcLoc "<nowhere>" 0 0 -- for when Show needs to not choke
+
 -- This code isn't very nice, largely because I anticipate it all being
 -- replaced eventually anyway.
 magic :: Env -> Exp -> EvalStep
@@ -275,10 +326,12 @@ tidyBinds e v = let keep = go (usedIn e) v in filter (`elem` keep) v
 need :: Env -> Name -> EvalStep
 need v n = case envBreak match v of
  (_, _, [], _) -> Done
- (_, bs, c : cs, ds) -> case c of
+ (as, bs, c : cs, ds) -> case c of
   PatBind s (PVar n) t (UnGuardedRhs e) (BDecls []) ->
    case step ((bs ++ cs) : ds) e of
-    Done -> yield e
+    Done -> case foldr (maybe id (:) . envLookup as) [] (freeNames e) of
+     [] -> yield e
+     xs -> todo "panic" xs
     Step (Eval e') -> Step . EnvEval $
      PatBind s (PVar n) t (UnGuardedRhs e') (BDecls [])
     f -> f
@@ -354,12 +407,12 @@ fromQName :: QName -> Name
 fromQName (UnQual n) = n
 fromQName q = error $ "fromQName: " ++ show q
 
-applyMatches :: [(Name, Exp)] -> GenericT
+applyMatches :: [MatchResult] -> GenericT
 -- If it's not an Exp, just recurse into it, otherwise try to substitute...
 applyMatches ms x = recurse `extT` replaceOne $ x
- where replaceOne e@(Var (UnQual m)) = fromMaybe e $ lookup m ms
+ where replaceOne e@(Var (UnQual m)) = maybe e mrExp $ mlookup m ms
        replaceOne (InfixApp x o@(QVarOp (UnQual m)) y) =
-        fromMaybe (InfixApp rx o ry) (mkApp <$> lookup m ms)
+        fromMaybe (InfixApp rx o ry) (mkApp . mrExp <$> mlookup m ms)
         where (rx, ry) = (replaceOne x, replaceOne y)
               mkApp (Var q) = InfixApp rx (QVarOp q) ry
               mkApp f = App (App f rx) ry
@@ -367,7 +420,11 @@ applyMatches ms x = recurse `extT` replaceOne $ x
        replaceOne e = recurse e
        recurse e = gmapT (applyMatches (notShadowed e)) e
        -- Parameter here might be redundant - it's only called on x anyway
-       notShadowed e = filter (not . flip shadows e . fst) ms
+       notShadowed e = filter (not . flip shadows e . mrName) ms
+
+mlookup :: Name -> [MatchResult] -> Maybe MatchResult
+mlookup m = foldr
+ (\x r -> x <$ guard (m == mrName x) <|> r) Nothing
 
 alpha :: Name -> [Name] -> GenericT
 alpha n avoid =
@@ -393,34 +450,31 @@ freeNames :: GenericQ [Name]
 freeNames e = filter (`isFreeIn` e) . Set.toList . Set.fromList $
  listify (const True) e
 
-peval :: EvalStep -> Maybe MatchResult
-peval (Step e) = Just $ Left e
-peval _ = Nothing
+peval :: EvalStep -> PatternMatch
+peval (Step e) = MatchEval e
+peval _ = NoMatch
 
-pmatch :: [(Name, Exp)] -> Maybe MatchResult
-pmatch = Just . Right
-
-patternMatch :: Env -> Pat -> Exp -> Maybe MatchResult
+patternMatch :: Env -> Pat -> Exp -> PatternMatch
 -- Strip parentheses
 patternMatch v (PParen p) x = patternMatch v p x
 patternMatch v p (Paren x) = patternMatch v p x
 -- Patterns that always match
-patternMatch _ (PWildCard) _ = pmatch []
-patternMatch _ (PVar n) x = pmatch [(n, x)]
+patternMatch _ (PWildCard) _ = Matched []
+patternMatch _ (PVar n) x = Matched [MatchResult n x id]
 -- Let-expressions should skip right to the interesting bit
 patternMatch v p (Let (BDecls ds) x) = case patternMatch (ds:v) p x of
- Just (Left (Eval e)) -> Just . Left . Eval $ mkLet ds e
+ MatchEval (Eval e) -> MatchEval . Eval $ mkLet ds e
  r -> r
 patternMatch _ _ (Let bs _) = todo "patternMatch Let" bs
 -- Variables can only match trivial patterns
 patternMatch v p (Var q) = case envLookup v (fromQName q) of
- Nothing -> Nothing
+ Nothing -> NoMatch
  Just (PatBind s q t (UnGuardedRhs e) bs) -> case patternMatch v p e of
-  Just (Left (Eval e')) ->
-   Just (Left (EnvEval (PatBind s q t (UnGuardedRhs e') bs)))
-  Just (Right _) -> Just (Left (Eval e))
+  MatchEval (Eval e') ->
+   MatchEval (EnvEval (PatBind s q t (UnGuardedRhs e') bs))
+  Matched _ -> MatchEval (Eval e)
   r -> r
- Just (FunBind _) -> Nothing
+ Just (FunBind _) -> NoMatch
  Just l -> todo "patternMatch Var" l
 -- Translate infix cases to prefix cases for simplicity
 -- I need to stop doing this at some point
@@ -430,13 +484,13 @@ patternMatch v p e@(InfixApp a n b) = case n of
  QConOp q -> patternMatch v p (App (App (Con q) a) b)
 -- Literal match
 patternMatch _ (PLit p) (Lit q)
- | p == q = pmatch []
- | otherwise = Nothing
+ | p == q = Matched []
+ | otherwise = NoMatch
 patternMatch v (PLit _) s = peval $ step v s
 patternMatch v (PList []) x = case argList x of
- [List []] -> pmatch []
- [List _] -> Nothing
- Con _ : _ -> Nothing
+ [List []] -> Matched []
+ [List _] -> NoMatch
+ Con _ : _ -> NoMatch
  _ -> peval $ step v x
 -- Lists of patterns
 patternMatch v (PList (p:ps)) q =
@@ -449,23 +503,29 @@ patternMatch v (PTuple ps) q = case q of
 patternMatch v (PApp n ps) q = case argList q of
  (Con c:xs)
   | c == n -> matches v ps xs (unArgList . (Con c :))
-  | otherwise -> Nothing
+  | otherwise -> NoMatch
  _ -> peval $ step v q
 -- Fallback case
 patternMatch _ p q = todo "patternMatch _" (p, q)
 
-matches :: Env -> [Pat] -> [Exp] -> ([Exp] -> Exp) -> Maybe MatchResult
-matches _ [] [] _ = pmatch []
+onMRFunc :: ((Exp -> Exp) -> (Exp -> Exp)) -> MatchResult -> MatchResult
+onMRFunc f (MatchResult n e g) = MatchResult n e (f g)
+
+matches :: Env -> [Pat] -> [Exp] -> ([Exp] -> Exp) -> PatternMatch
+matches _ [] [] _ = Matched []
 matches v ps xs f = go v ps xs id
- where go _ [] [] _ = pmatch []
+ where go _ [] [] _ = Matched []
        go v (p:ps) (e:es) g =
         case (patternMatch v p e, go v ps es (g . (e:))) of
-         (Nothing, _) -> Nothing
-         (Just (Left (Eval e')), _) -> Just . Left . Eval . f . g $ e' : es
-         (r@(Just (Left _)), _) -> r
-         (Just (Right xs), Just (Right ys)) -> Just (Right (xs ++ ys))
+         (NoMatch, _) -> NoMatch
+         (MatchEval (Eval e'), _) -> MatchEval . Eval . f . g $ e' : es
+         (r@(MatchEval _), _) -> r
+         -- this is slightly evil
+         (Matched xs, Matched ys) ->
+          Matched (ed ((f . g . (: es)) .) xs ++ ys)
          (_, r) -> r
-       go _ _ _ _ = Nothing
+       go _ _ _ _ = NoMatch
+       ed = map . onMRFunc
 
 argList :: Exp -> [Exp]
 argList = reverse . atl

@@ -26,7 +26,7 @@ import Language.Haskell.Exts (
  QOp (QConOp, QVarOp),
  Rhs (UnGuardedRhs),
  SpecialCon (Cons),
- SrcLoc (SrcLoc),
+ SrcLoc (), -- (SrcLoc),
  Stmt (Generator, LetStmt, Qualifier),
  preludeFixities,
  prettyPrint

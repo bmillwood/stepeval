@@ -186,8 +186,17 @@ step v (Case e alts@(Alt l p a bs@(BDecls ds) : as)) =
        -- drop this guard and move to the next
        else yield $ mkCase (GuardedAlts gs)
      | otherwise -> Failure
+    -- Okay this is a bit evil. Basically we pretend the guard is being
+    -- evaluated in a let-scope generated from the result of the pattern
+    -- match. This allows us to use the same code that is supposed to
+    -- implement sharing to work out if the scrutinee needs evaluation. If
+    -- it does then we can step the bit that matched specifically (rather
+    -- than the whole expression) and then use the laboriously- (but, with
+    -- any luck, lazily-) constructed third field of MatchResult to recreate
+    -- the rest of the scrutinee around it.
     [Qualifier q] -> case step (matchesToScope rs:ds:v) q of
      Step (Eval q') -> yield . mkCase . newAlt $ q'
+     -- pattern matching nested this deeply is probably bad for readability
      r@(Step (EnvEval (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])))) ->
       case mlookup n rs of
        Nothing -> r
@@ -511,21 +520,43 @@ patternMatch _ p q = todo "patternMatch _" (p, q)
 onMRFunc :: ((Exp -> Exp) -> (Exp -> Exp)) -> MatchResult -> MatchResult
 onMRFunc f (MatchResult n e g) = MatchResult n e (f g)
 
+-- This function basically does multiple simultaneous pattern matches, e.g.
+-- for a list or tuple of patterns. The fourth parameter tells you how to
+-- put the list together if that becomes necessary for some reason (so it
+-- might be the Tuple constructor, for example)
+-- The tricky part about this is the third field of PatternMatch, which
+-- contains a function to put the matchresult - perhaps after some
+-- modification - back into its original context.
+-- This is something that is mostly best understood by example. Luckily I've
+-- provided an evil Show instance for Exp -> Exp so you should be able to
+-- see its purpose in a bit of mucking about with ghci :)
+-- Obviously it starts off as id.
 matches :: Env -> [Pat] -> [Exp] -> ([Exp] -> Exp) -> PatternMatch
 matches _ [] [] _ = Matched []
 matches v ps xs f = go v ps xs id
  where go _ [] [] _ = Matched []
        go v (p:ps) (e:es) g =
+        -- We rely on laziness here to not recurse if the first match fails.
+        -- If we do recurse, then the reconstruction function needs to
+        -- put the current expression on the end.
         case (patternMatch v p e, go v ps es (g . (e:))) of
          (NoMatch, _) -> NoMatch
          (MatchEval (Eval e'), _) -> MatchEval . Eval . f . g $ e' : es
          (r@(MatchEval _), _) -> r
-         -- this is slightly evil
          (Matched xs, Matched ys) ->
-          Matched (ed ((f . g . (: es)) .) xs ++ ys)
+          -- great, everything worked fine. Now we assume the recursive case
+          -- has everything worked out and we just need to apply the final
+          -- touches to the reconstruction function.
+          -- So far it'll be a [Exp] -> [Exp] that basically consists of
+          -- everything we've skipped to get this far in the pattern match.
+          -- We want to also append everything we haven't met yet (making
+          -- an Exp -> [Exp]) and then apply the combination function given
+          -- as a parameter (making Exp -> Exp, which is what we need). We
+          -- do this for every pattern match item.
+          Matched (map (onMRFunc ((f . g . (: es)) .)) xs ++ ys)
          (_, r) -> r
+       -- Ran out of patterns before expressions or vice versa, fail
        go _ _ _ _ = NoMatch
-       ed = map . onMRFunc
 
 argList :: Exp -> [Exp]
 argList = reverse . atl

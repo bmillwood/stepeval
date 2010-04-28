@@ -333,7 +333,7 @@ tidyBinds e v = let keep = go (usedIn e) v in filter (`elem` keep) v
        unOp (ConOp n) = n
 
 need :: Env -> Name -> EvalStep
-need v n = case envBreak match v of
+need v n = case envBreak ((Just n ==) . declName) v of
  (_, _, [], _) -> Done
  (as, bs, c : cs, ds) -> case c of
   PatBind s (PVar n) t (UnGuardedRhs e) (BDecls []) ->
@@ -346,10 +346,6 @@ need v n = case envBreak match v of
     f -> f
   FunBind _ -> Done
   b -> todo "need case" b
- where match (PatBind _ (PVar m) _ _ _) = m == n
-       match (FunBind ms) = funName ms == n
-       match (InfixDecl _ _ _ _) = False
-       match l = todo "need match" l
 
 funName :: [Match] -> Name
 funName [] = error "No matches?"
@@ -397,13 +393,15 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
 updateBind l _ = todo "updateBind" l
 
 envLookup :: Env -> Name -> Maybe Decl
-envLookup v n = case envBreak match v of
+envLookup v n = case envBreak ((Just n ==) . declName) v of
  (_, _, [], _) -> Nothing
  (_, _, c : _, _) -> Just c
- where match (PatBind _ (PVar m) _ _ _) = m == n
-       match (FunBind ms) = funName ms == n
-       match (InfixDecl _ _ _ _) = False
-       match l = todo "envLookup match" l
+
+declName :: Decl -> Maybe Name
+declName (PatBind _ (PVar m) _ _ _) = Just m
+declName (FunBind ms) = Just (funName ms)
+declName (InfixDecl _ _ _ _) = Nothing
+declName d = todo "declName" d
 
 envBreak :: (a -> Bool) -> [[a]] -> ([[a]], [a], [a], [[a]])
 envBreak _ [] = ([], [], [], [])
@@ -476,15 +474,18 @@ patternMatch v p (Let (BDecls ds) x) = case patternMatch (ds:v) p x of
  r -> r
 patternMatch _ _ (Let bs _) = todo "patternMatch Let" bs
 -- Variables can only match trivial patterns
-patternMatch v p (Var q) = case envLookup v (fromQName q) of
- Nothing -> NoMatch
- Just (PatBind s q t (UnGuardedRhs e) bs) -> case patternMatch v p e of
-  MatchEval (Eval e') ->
-   MatchEval (EnvEval (PatBind s q t (UnGuardedRhs e') bs))
-  Matched _ -> MatchEval (Eval e)
-  r -> r
- Just (FunBind _) -> NoMatch
- Just l -> todo "patternMatch Var" l
+patternMatch v p (Var q) = case envBreak ((Just n ==) . declName) v of
+ (_, _, [], _) -> NoMatch
+ (_, xs, y : ys, zs) -> case y of
+  PatBind s q t (UnGuardedRhs e) bs -> case patternMatch v' p e of
+   MatchEval (Eval e') ->
+    MatchEval (EnvEval (PatBind s q t (UnGuardedRhs e') bs))
+   Matched _ -> MatchEval (Eval e)
+   r -> r
+   where v' = (xs ++ ys) : zs
+  FunBind _ -> NoMatch
+  l -> todo "patternMatch Var" l
+ where n = fromQName q
 -- Translate infix cases to prefix cases for simplicity
 -- I need to stop doing this at some point
 patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s

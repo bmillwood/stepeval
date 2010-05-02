@@ -37,7 +37,7 @@ Flag test
 Executable stepeval
  Build-Depends: containers >= 0.1 && < 0.4,
                 extensible-exceptions >= 0.1 && < 0.2,
-                haskell-src-exts >= 1.6 && < 1.9
+                haskell-src-exts >= 1.6 && < 1.10
  if flag(old)
   Build-Depends: base >= 3 && < 4
  else 

@@ -28,9 +28,15 @@ parenE xs (Let (BDecls bs) e) = Let (BDecls bs') e'
        e' = parenE xs' e
 
 parenE xs (App f x) = App (app fp f) (app xp x)
- where app p x = appIf Paren p $ parenE xs x
-       fp x = isLambda x || isIApp x
-       xp x = isLambda x || isIApp x || isApp x
+ where app p x = parenIf p $ parenE xs x
+       fp x = isLet x || isLambda x || isIApp x
+       xp x = isLet x || isLambda x || isIApp x || isApp x
+
+parenE xs (InfixApp l p r)
+ | isLet l || isLambda l = parenE xs $ InfixApp (Paren l) p r
+ -- There are some circumstance in which it's ok to have unparenthised let
+ -- or lambda on the RHS, but they're a pain to catch.
+ | isLet r || isLambda r = parenE xs $ InfixApp l p (Paren r)
 
 parenE xs (InfixApp l p r@(InfixApp _ q _))
  | qf > pf = recurse
@@ -59,6 +65,9 @@ parenM xs (Match s n ps t r bs) = Match s n (f ps) t (f r) (f bs)
         BDecls ds -> scopeToFixities ds ++ xs
         _ -> xs
 
+parenIf :: (Exp -> Bool) -> Exp -> Exp
+parenIf = appIf Paren
+
 appIf :: (a -> a) -> (a -> Bool) -> a -> a
 appIf f p x
  | p x = f x
@@ -76,10 +85,12 @@ getFix xs o = foldr
  (Fixity AssocLeft 9 o) xs
 
 isLambda, isIApp, isApp :: Exp -> Bool
-isLambda (Lambda _ _ _) = True
+isLambda (Lambda {}) = True
 isLambda _ = False
-isIApp (InfixApp _ _ _) = True
+isLet (Let {}) = True
+isLet _ = False
+isIApp (InfixApp {}) = True
 isIApp _ = False
-isApp (App _ _) = True
+isApp (App {}) = True
 isApp _ = False
 

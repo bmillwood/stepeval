@@ -216,12 +216,10 @@ step _ e@(Case _ _) = todo "step Case" e
 -- Let
 step _ (Let (BDecls []) e) = yield e
 step v (Let (BDecls bs) e) = case step (bs : v) e of
-  Step (Eval e') -> yield $ newLet e' bs
-  Step r@(EnvEval e') -> Step $ maybe r (Eval . newLet e) $ updateBind e' bs
+  Step (Eval e') -> yield $ mkLet bs e'
+  Step r@(EnvEval e') -> Step . maybe r (Eval . flip mkLet e) $
+   updateBind e' bs
   r -> r
- where newLet e bs = case tidyBinds e bs of
-        [] -> e
-        bs' -> Let (BDecls bs') e
 -- If
 step _ (If (Con (UnQual (Ident i))) t f) = case i of
  "True" -> yield t

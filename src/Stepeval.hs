@@ -437,13 +437,12 @@ alpha :: Name -> [Name] -> GenericT
 alpha n avoid =
  -- genNames produces an infinite list, so find cannot give Nothing
  let Just m = find (`notElem` avoid) $ case n of
-      Ident i -> map Ident $ genNames i ['0' .. '9'] [1 ..]
-      Symbol s -> map Symbol $ genNames s "!?*#+&$%@." [1 ..]
+      Ident i -> map Ident $ genNames i ['0' .. '9'] 1
+      Symbol s -> map Symbol $ genNames s "!?*#+&$%@." 1
   in everywhereBut (shadows n) (mkT $ replaceOne n m)
- where genNames n xs ~(i:is) =
-        map (n ++) (replicateM i xs) ++ genNames n xs is
-       replaceOne n m r | n == r = m
-       replaceOne _ _ r = r
+ where genNames n xs i =
+        map (n ++) (replicateM i xs) ++ genNames n xs (succ i)
+       replaceOne n m r | n == r = m | otherwise = r
 
 isFreeIn :: Name -> GenericQ Bool
 isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))

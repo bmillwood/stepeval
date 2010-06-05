@@ -13,11 +13,15 @@ import Stepeval
 
 main = do
  args <- getArgs
- setCurrentDirectory "testsuite"
- getTests >>= mapM_ (runTest args)
+ getTests args >>= mapM_ (runTest args)
 
-getTests = sort <$> getDirectoryContents "." >>= filterM doesFileExist >>=
- mapM (\t -> ((,) t) <$> readFile t)
+getTests args = case filter ((/= "-") . take 1) args of
+ [] -> setCurrentDirectory "testsuite" >>
+  sort <$> getDirectoryContents "." >>=
+  filterM doesFileExist >>=
+  mapM readTest
+ fns -> mapM readTest fns
+ where readTest t = ((,) t) <$> readFile t
 
 runTest args (t, b) = handle showEx $ case dropWhile (/= '.') t of
  ".step" -> go . map parseExp $ paragraphs b

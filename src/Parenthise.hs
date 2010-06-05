@@ -34,9 +34,6 @@ parenE xs (App f x) = App (app fp f) (app xp x)
 
 parenE xs (InfixApp l p r)
  | isLet l || isLambda l = parenE xs $ InfixApp (Paren l) p r
- -- There are some circumstance in which it's ok to have unparenthised let
- -- or lambda on the RHS, but they're a pain to catch.
- | isLet r || isLambda r = parenE xs $ InfixApp l p (Paren r)
 
 parenE xs (InfixApp l p r@(InfixApp _ q _))
  | qf > pf = recurse
@@ -47,7 +44,8 @@ parenE xs (InfixApp l p r@(InfixApp _ q _))
        (l', r') = (parenE xs l, parenE xs r)
        recurse = InfixApp l' p r'
 
-parenE xs (InfixApp l@(InfixApp _ q _) p r)
+parenE xs (InfixApp l@(InfixApp _ q lr) p r)
+ | isLet lr || isLambda lr = InfixApp (Paren l') p r'
  | qf > pf = recurse
  | qf == pf && qa == AssocLeft && pa == AssocLeft = recurse
  | otherwise = InfixApp (Paren l') p r'

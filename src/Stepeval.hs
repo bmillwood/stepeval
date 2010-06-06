@@ -83,14 +83,11 @@ instance Show MatchResult where
          | x == d = dropEq xs ds (f . (x:))
         dropEq s _ f = f (fixPcdata s)
 
-unMatchResult :: (Name -> Exp -> (Exp -> Exp) -> b) -> MatchResult -> b
-unMatchResult g (MatchResult n e f) = g n e f
-
 mrName :: MatchResult -> Name
-mrName = unMatchResult $ \n _ _ -> n
+mrName (MatchResult n _ _) = n
 
 mrExp :: MatchResult -> Exp
-mrExp = unMatchResult $ \_ e _ -> e
+mrExp (MatchResult _ e _) = e
 
 liftE :: (Exp -> Exp) -> EvalStep -> EvalStep
 liftE f (Step (Eval e)) = Step (Eval (f e))

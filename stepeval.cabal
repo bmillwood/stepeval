@@ -6,6 +6,7 @@ Name:     stepeval
 Version:  0.1
 Category: Language
 Synopsis: A tool for displaying the evaluation of a Haskell expression
+
 Description:
     stepeval is a tool that can operate as a command-line utility
     or CGI script. In either case, it is given a Haskell
@@ -27,44 +28,44 @@ Tested-with:        GHC == 6.8.2, GHC == 6.12.1
 Extra-source-files: testsuite/*.step testsuite/*.eval
 
 Flag old
- Description: Use base-3 dependencies
- Default:     False
+  Description: Use base-3 dependencies
+  Default:     False
 
 Flag test
- Description: Build the testing application
- Default:     False
+  Description: Build the testing application
+  Default:     False
 
 Executable stepeval
- Build-Depends: containers >= 0.1 && < 0.4,
-                extensible-exceptions >= 0.1 && < 0.2,
-                haskell-src-exts >= 1.6 && < 1.10
- if flag(old)
-  Build-Depends: base >= 3 && < 4
- else 
-  Build-Depends: base >= 4 && < 4.3, syb >= 0.1 && < 0.3
+  Build-Depends: containers >= 0.1 && < 0.4,
+                 extensible-exceptions >= 0.1 && < 0.2,
+                 haskell-src-exts >= 1.6 && < 1.10
+  if flag(old)
+    Build-Depends: base >= 3 && < 4
+  else 
+    Build-Depends: base >= 4 && < 4.3, syb >= 0.1 && < 0.3
 
- GHC-Options:    -W
- Hs-Source-Dirs: src
- Main-Is:        Main.hs
- Other-Modules:  Stepeval, Parenthise
+  GHC-Options:    -W
+  Hs-Source-Dirs: src
+  Main-is:        Main.hs
+  Other-Modules:  Stepeval, Parenthise
 
 Executable test
- Main-Is: Test.hs
+  Main-is: Test.hs
 
- if flag(test)
-  if flag(old)
-   Build-Depends: base >= 3 && < 4, directory >= 1.0 && < 1.1
+  if flag(test)
+    if flag(old)
+      Build-Depends: base >= 3 && < 4, directory >= 1.0 && < 1.1
+    else
+      Build-Depends: base >= 4 && < 4.3, directory >= 1.0 && < 1.1,
+                     syb >= 0.1 && < 0.3
+    GHC-Options:    -W
+    Hs-Source-Dirs: src testsuite
+    Other-Modules:  Stepeval, Parenthise
   else
-   Build-Depends: base >= 4 && < 4.3, directory >= 1.0 && < 1.1,
-                  syb >= 0.1 && < 0.3
-  GHC-Options:    -W
-  Hs-Source-Dirs: src testsuite
-  Other-Modules:  Stepeval, Parenthise
- else
-  Buildable: False
+    Buildable: False
 
 -- This is illegal with Cabal pre-1.6 but luckily it's not a fatal error
 Source-Repository head
- type:     git
- location: git://github.com/benmachine/stepeval.git
+  type:     git
+  location: git://github.com/benmachine/stepeval.git
 

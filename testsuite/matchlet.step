@@ -1,0 +1,51 @@
+let [] ++ ys = ys
+    (x : xs) ++ ys = x : xs ++ ys
+    longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in
+  let xs = 'x' : xs in longenough ((let xs = [4] in xs ++ []) ++ xs)
+
+let [] ++ ys = ys
+    (x : xs) ++ ys = x : xs ++ ys
+    longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in
+  let xs = 'x' : xs in
+    longenough ((let xs = 4 : [] in xs ++ []) ++ xs)
+
+let [] ++ ys = ys
+    (x : xs) ++ ys = x : xs ++ ys
+    longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in let xs = 'x' : xs in longenough (((4 : []) ++ []) ++ xs)
+
+let [] ++ ys = ys
+    (x : xs) ++ ys = x : xs ++ ys
+    longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in let xs = 'x' : xs in longenough ((4 : [] ++ []) ++ xs)
+
+let [] ++ ys = ys
+    (x : xs) ++ ys = x : xs ++ ys
+    longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in let xs = 'x' : xs in longenough (4 : ([] ++ []) ++ xs)
+
+let [] ++ ys = ys
+    (x : xs) ++ ys = x : xs ++ ys
+    longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in let xs = 'x' : xs in longenough (4 : [] ++ xs)
+
+let longenough [] = False
+    longenough [x] = False
+    longenough _ = True
+  in let xs = 'x' : xs in longenough (4 : xs)
+
+True

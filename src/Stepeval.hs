@@ -468,6 +468,8 @@ patternMatch _ (PVar n) x = Matched [MatchResult n x id]
 -- Let-expressions should skip right to the interesting bit
 patternMatch v p (Let (BDecls ds) x) = case patternMatch (ds:v) p x of
  MatchEval (Eval e) -> MatchEval . Eval $ mkLet ds e
+ MatchEval r@(EnvEval e) -> MatchEval . maybe r (Eval . flip mkLet x) $
+  updateBind e ds
  r -> r
 patternMatch _ _ (Let bs _) = todo "patternMatch Let" bs
 -- Variables can only match trivial patterns

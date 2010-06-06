@@ -14,7 +14,7 @@ import Language.Haskell.Exts (
  Binds (BDecls),
  Decl (PatBind, FunBind, InfixDecl),
  Exp (App, Case, Con, Do, If, InfixApp, Lambda, LeftSection,
-  Let, List, Lit, Paren, RightSection, Tuple, Var, XPcdata),
+  Let, List, Lit, Paren, RightSection, Tuple, Var),
  GuardedAlt (GuardedAlt),
  GuardedAlts (UnGuardedAlt, GuardedAlts),
  Literal (Char, Frac, Int, String),
@@ -71,17 +71,19 @@ instance Show MatchResult where
   where sp = showString " "
         showN = showsPrec 11 n
         showE = showsPrec 11 e
-        showF = showParen True $ showString "\\arg -> " . fixPcdata .
-         shows (f (XPcdata "arg"))
-        fixPcdata s = case break (`elem` "(X") s of
+        -- We assume a sensible function would not produce variables with
+        -- empty names
+        showF = showParen True $ showString "\\arg -> " . fixVar .
+         shows (f (Var (UnQual (Ident ""))))
+        fixVar s = case break (`elem` "(V") s of
          (r, "") -> r
-         (r, '(':s') -> r ++ dropEq s' "XPcdata \"arg\")" ('(':)
-         (r, 'X':s') -> r ++ dropEq s' "Pcdata \"arg\"" ('X':)
-         _ -> s
-        dropEq s "" _ = "arg" ++ fixPcdata s
+         (r, '(':s') -> r ++ dropEq s' "Var (UnQual (Ident \"\")))" ('(':)
+         (r, 'V':s') -> r ++ dropEq s' "ar (UnQual (Ident \"\"))" ('V':)
+         _ -> error "MatchResult.Show: hack a splode"
+        dropEq s "" _ = "arg" ++ fixVar s
         dropEq (x:xs) (d:ds) f
          | x == d = dropEq xs ds (f . (x:))
-        dropEq s _ f = f (fixPcdata s)
+        dropEq s _ f = f (fixVar s)
 
 mrName :: MatchResult -> Name
 mrName (MatchResult n _ _) = n

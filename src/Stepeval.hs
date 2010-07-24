@@ -32,7 +32,7 @@ import Language.Haskell.Exts (
  prettyPrint
  )
 
-import Parenthise (deparen, enparenWith)
+import Parenthise (deparen, enparenWith, scopeToFixities)
 
 eval :: Scope -> Exp -> Exp
 eval s = last . itereval s
@@ -43,10 +43,15 @@ printeval s = mapM_ (putStrLn . prettyPrint) . itereval s
 itereval :: Scope -> Exp -> [Exp]
 itereval s e = e : unfoldr (fmap (join (,)) . stepeval s) e
 
+-- The use of preludeFixities here is questionable, since we don't use
+-- prelude functions, but it's more convenient in general.
+-- When we grow a proper Prelude of our own, it would be nice to use that
+-- instead.
 stepeval :: Scope -> Exp -> Maybe Exp
 stepeval s e = case step [s] e of
- Step (Eval e') -> Just (enparenWith preludeFixities . deparen $ e')
+ Step (Eval e') -> Just (enparenWith fixes . deparen $ e')
  _ -> Nothing
+ where fixes = scopeToFixities s ++ preludeFixities
 
 -- Sometimes evaluating a subexpression means evaluating an outer expression
 data Eval = EnvEval Decl | Eval Exp

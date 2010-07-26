@@ -120,11 +120,11 @@ step v e@(App _ _) = magic v e `orE` case argList e of
   LeftSection e o : x : xs -> yield . unArgList $ InfixApp e o x : xs
   RightSection o e : x : xs -> yield . unArgList $ InfixApp x o e : xs
   -- note that since we matched against an App, es should be non-empty
-  f@(Lambda _ _ _) : es -> applyLambda f es
+  Lambda s ps e : es -> applyLambda s ps e es
    where
-    applyLambda (Lambda _ [] _) _ = error "Lambda with no patterns?"
-    applyLambda f [] = yield f
-    applyLambda (Lambda s ps@(p:qs) e) (x:xs) = case patternMatch v p x of
+    applyLambda _ [] _ _ = error "Lambda with no patterns?"
+    applyLambda s ps e [] = yield $ Lambda s ps e
+    applyLambda s ps@(p:qs) e (x:xs) = case patternMatch v p x of
       NoMatch -> Failure
       MatchEval r -> (\x -> unArgList $ Lambda s ps e : x : xs) |$| Step r
       Matched ms -> case qs of
@@ -132,7 +132,7 @@ step v e@(App _ _) = magic v e `orE` case argList e of
         qs
           | anywhere (`elem` mnames) qs ->
             yield . unArgList $ newLambda : x : xs
-          | otherwise -> applyLambda (Lambda s qs $ applyMatches ms e) xs
+          | otherwise -> applyLambda s qs (applyMatches ms e) xs
          where
           newLambda = Lambda s (fixNames ps) (fixNames e)
           fixNames :: GenericT -- the DMR strikes again
@@ -147,7 +147,6 @@ step v e@(App _ _) = magic v e `orE` case argList e of
           lnames = freeNames ps ++ freeNames e
           mnames = Set.toList . foldMap (Set.fromList . freeNames . mrExp)
             $ ms
-    applyLambda _ _ = error "not a lambda!"
   f@(Var q) : es -> case envLookup v (fromQName q) of
     Nothing -> Done
     Just (PatBind _ _ _ _ _) -> (\f' -> unArgList (f' : es)) |$| step v f

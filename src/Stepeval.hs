@@ -238,10 +238,6 @@ step _ (If (Con (UnQual (Ident i))) t f) = case i of
 step v (If e t f) = (\e -> If e t f) |$| step v e
 
 -- Desugarings
-step _ (List (x:xs)) = yield $
-  InfixApp x (QConOp (Special Cons)) (List xs)
-step _ (Lit (String (x:xs))) = yield $
-  InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
 step _ (Do []) = error "Empty do?"
 step _ (Do [Qualifier e]) = yield e
 step _ (Do [_]) = Failure
@@ -512,12 +508,15 @@ patternMatch v p (Var q) = case envBreak ((Just n ==) . declName) v of
     l -> todo "patternMatch Var" l
  where
   n = fromQName q
--- Translate infix cases to prefix cases for simplicity
--- I need to stop doing this at some point
+-- Desugar infix applications and lists
 patternMatch v (PInfixApp p q r) s = patternMatch v (PApp q [p, r]) s
 patternMatch v p e@(InfixApp a n b) = case n of
   QVarOp _ -> peval $ step v e
   QConOp q -> patternMatch v p (App (App (Con q) a) b)
+patternMatch _ _ (List (x:xs)) = MatchEval . Eval $
+  InfixApp x (QConOp (Special Cons)) (List xs)
+patternMatch _ _ (Lit (String (x:xs))) = MatchEval . Eval $
+  InfixApp (Lit (Char x)) (QConOp (Special Cons)) (Lit (String xs))
 -- Literal match
 patternMatch _ (PLit p) (Lit q)
   | p == q = Matched []

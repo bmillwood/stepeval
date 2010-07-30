@@ -1,0 +1,9 @@
+case (,) 1 2 of
+    (_, _) -> True
+    _ -> False
+
+case (1, 2) of
+    (_, _) -> True
+    _ -> False
+
+True

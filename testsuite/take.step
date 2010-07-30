@@ -1,0 +1,77 @@
+let take n xs = if n <= 0 then []
+     else case xs of
+      [] -> []
+      y:ys -> y : take (n - 1) ys
+    repeat x = let xs = x : xs in xs
+ in take 3 (repeat 'x')
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+    repeat x = let xs = x : xs in xs
+  in
+  if 3 <= 0 then [] else
+    case repeat 'x' of
+        [] -> []
+        y : ys -> y : take (3 - 1) ys
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+    repeat x = let xs = x : xs in xs
+  in
+  if False then [] else
+    case repeat 'x' of
+        [] -> []
+        y : ys -> y : take (3 - 1) ys
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+    repeat x = let xs = x : xs in xs
+  in
+  case repeat 'x' of
+      [] -> []
+      y : ys -> y : take (3 - 1) ys
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+  in
+  case let xs = 'x' : xs in xs of
+      [] -> []
+      y : ys -> y : take (3 - 1) ys
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+  in
+  case let xs = 'x' : xs in xs of
+      y : ys -> y : take (3 - 1) ys
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+  in
+  case let xs = 'x' : xs in 'x' : xs of
+      y : ys -> y : take (3 - 1) ys
+
+let take n xs
+      = if n <= 0 then [] else
+          case xs of
+              [] -> []
+              y : ys -> y : take (n - 1) ys
+  in let xs = 'x' : xs in 'x' : take (3 - 1) xs
+

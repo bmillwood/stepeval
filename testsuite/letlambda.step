@@ -1,0 +1,7 @@
+(let n = 3 in \ x -> n + x) 4
+
+let n = 3 in n + 4
+
+3 + 4
+
+7

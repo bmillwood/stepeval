@@ -1,6 +1,12 @@
-(let n = 3 in \ x -> n + x) 4
+let n = 4 in (let n = 3 in \ x -> n + x) n
 
-let n = 3 in n + 4
+let n = 4 in (let n0 = 3 in \ x -> n0 + x) n
+
+let n = 4 in let n0 = 3 in (\ x -> n0 + x) n
+
+let n = 4 in let n0 = 3 in n0 + n
+
+let n = 4 in 3 + n
 
 3 + 4
 

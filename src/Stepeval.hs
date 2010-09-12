@@ -176,6 +176,15 @@ step v e@(App f x) = magic v e `orE` case argList e of
               unArgList e' r
         app m = todo "step App Var app" m
     Just d -> todo "step App Var" d
+  l@(Let (BDecls bs) f) : e : es ->
+    foldr (orE . alphaBind) fallback incomingNames
+   where
+    incomingNames = freeNames e
+    avoidNames = incomingNames ++ freeNames f
+    alphaBind n
+      | shadows n l = flip unArgList (e : es) |$|
+        yield (uncurry mkLet (alpha n avoidNames (tidyBinds f bs, f)))
+      | otherwise = yield $ unArgList (Let (BDecls bs) (App f e)) es
   _ -> fallback
  where
   fallback = flip app x |$| step v f `orE` app f |$| step v x

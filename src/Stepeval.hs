@@ -20,7 +20,7 @@ import Language.Haskell.Exts (
   Match (Match),
   Op (ConOp, VarOp),
   Pat (PApp, PInfixApp, PList, PLit, PParen, PTuple, PVar, PWildCard),
-  Name (Ident, Symbol), QName (Special, UnQual), QOp (QConOp, QVarOp),
+  Name (Ident, Symbol), QName (Special, Qual, UnQual), QOp (QConOp, QVarOp),
   Rhs (UnGuardedRhs),
   SpecialCon (Cons),
   SrcLoc (), -- (SrcLoc),
@@ -125,9 +125,9 @@ step :: Env -> Exp -> EvalStep
 step v (Var n) = need v (fromQName n)
 
 -- Function application
-step v e@(App _ _) = magic v e `orE` case argList e of
-  LeftSection e o : x : xs -> yield . unArgList $ InfixApp e o x : xs
-  RightSection o e : x : xs -> yield . unArgList $ InfixApp x o e : xs
+step v e@(App f x) = magic v e `orE` case argList e of
+  LeftSection e o : x : xs -> yield $ unArgList (InfixApp e o x) xs
+  RightSection o e : x : xs -> yield $ unArgList (InfixApp x o e) xs
   -- note that since we matched against an App, es should be non-empty
   Lambda s ps e : es -> applyLambda s ps e es
    where
@@ -135,12 +135,12 @@ step v e@(App _ _) = magic v e `orE` case argList e of
     applyLambda s ps e [] = yield $ Lambda s ps e
     applyLambda s ps@(p:qs) e (x:xs) = case patternMatch v p x of
       NoMatch -> Failure
-      MatchEval r -> (\x -> unArgList $ Lambda s ps e : x : xs) |$| Step r
+      MatchEval r -> (\x -> unArgList (Lambda s ps e) $ x : xs) |$| Step r
       Matched ms -> case qs of
-        [] -> yield $ unArgList (applyMatches ms e : xs)
+        [] -> yield $ unArgList (applyMatches ms e) xs
         qs
           | anywhere (`elem` mnames) qs ->
-            yield . unArgList $ newLambda : x : xs
+            yield . unArgList newLambda $ x : xs
           | otherwise -> applyLambda s qs (applyMatches ms e) xs
          where
           newLambda = Lambda s (fixNames ps) (fixNames e)
@@ -158,7 +158,7 @@ step v e@(App _ _) = magic v e `orE` case argList e of
             $ ms
   f@(Var q) : es -> case envLookup v (fromQName q) of
     Nothing -> Done
-    Just (PatBind _ _ _ _ _) -> (\f' -> unArgList (f' : es)) |$| step v f
+    Just (PatBind _ _ _ _ _) -> (\f' -> unArgList f' es) |$| step v f
     Just (FunBind ms)
       | null . drop (pred arity) $ es -> fallback
       | otherwise -> foldr (orE . app) fallback ms
@@ -166,17 +166,17 @@ step v e@(App _ _) = magic v e `orE` case argList e of
         arity = funArity ms
         (xs, r) = splitAt arity es
         app (Match _ _ ps _ (UnGuardedRhs e') (BDecls ds)) =
-          case matches v ps xs (unArgList . (f :)) of
+          case matches v ps xs (unArgList f) of
             NoMatch -> Failure
-            MatchEval (Eval e') -> yield . unArgList $ e' : r
+            MatchEval (Eval e') -> yield $ unArgList e' r
             MatchEval e -> Step e
-            Matched ms -> yield . applyMatches ms . mkLet ds .
-              unArgList $ e' : r
+            Matched ms -> yield . applyMatches ms . mkLet ds $
+              unArgList e' r
         app m = todo "step App Var app" m
     Just d -> todo "step App Var" d
-   where
-    fallback = liststep v unArgList (f : es)
-  es -> liststep v unArgList es
+  _ -> fallback
+ where
+  fallback = flip app x |$| step v f `orE` app f |$| step v x
 step v e@(InfixApp p o q) = case o of
   QVarOp n -> magic v e `orE`
     step v (App (App (Var n) p) q)
@@ -274,6 +274,24 @@ step _ (List []) = Done
 step _ (Con _) = Done
 step _ (Lambda _ _ _) = Done
 step _ e = todo "step _" e
+
+-- | Apply the function to the argument as neatly as possible - i.e. infix
+-- or make a section if the function's an operator
+app :: Exp -> Exp -> Exp
+app (Con q) x | isOperator q = LeftSection x (QConOp q)
+app (Var q) x | isOperator q = LeftSection x (QVarOp q)
+app (LeftSection x op) y = InfixApp x op y
+app (RightSection op y) x = InfixApp x op y
+app f x = App f x
+
+-- | 'True' if the name refers to a non-tuple operator. Tuples are excluded
+-- because they're "mixfix" and therefore need to be considered separately
+-- anyway.
+isOperator :: QName -> Bool
+isOperator (Special Cons) = True
+isOperator (UnQual (Symbol _)) = True
+isOperator (Qual _ (Symbol _)) = True
+isOperator _ = False
 
 -- | Given a list of expressions, evaluate the first one that isn't already
 -- evaluated and then recombine them with the given function.
@@ -477,8 +495,7 @@ applyMatches ms x = recurse `extT` replaceOne $ x
     fromMaybe (InfixApp rx o ry) (mkApp . mrExp <$> mlookup m ms)
    where
     (rx, ry) = (replaceOne x, replaceOne y)
-    mkApp (Var q) = InfixApp rx (QVarOp q) ry
-    mkApp f = App (App f rx) ry
+    mkApp f = app (app f rx) ry
   -- ...or else recurse anyway
   replaceOne e = recurse e
   recurse e = gmapT (applyMatches (notShadowed e)) e
@@ -584,7 +601,7 @@ patternMatch v (PTuple ps) q = case q of
 -- Constructor matches
 patternMatch v (PApp n ps) q = case argList q of
   (Con c:xs)
-    | c == n -> matches v ps xs (unArgList . (Con c :))
+    | c == n -> matches v ps xs (unArgList (Con c))
     | otherwise -> NoMatch
   _ -> peval $ step v q
 -- Fallback case
@@ -647,20 +664,11 @@ argList = reverse . atl
     QConOp n -> Con n]
   atl e = [e]
 
--- | Take a list of @[function, arg1, arg2, ...]@ and recombine it into
--- an infix app if the function has an operator name or a normal application
--- otherwise.
-unArgList :: [Exp] -> Exp
-unArgList (e:es@(x:ys)) = case e of
-  Con q@(Special Cons) -> rhs (QConOp q) x ys
-  Con q@(UnQual (Symbol _)) -> rhs (QConOp q) x ys
-  Var q@(UnQual (Symbol _)) -> rhs (QVarOp q) x ys
-  e -> foldl App e es
- where
-  rhs o x [] = LeftSection x o
-  rhs o x (y:ys) = unArgList $ InfixApp x o y : ys
-unArgList (e:es) = foldl App e es
-unArgList [] = error "unArgList: no expressions"
+-- This could be optimised because app checks for atomic functions but we
+-- know after the first app that none of the subsequent functions are so.
+-- | @'foldl' 'app'@. Apply a function to a list of arguments, neatly.
+unArgList :: Exp -> [Exp] -> Exp
+unArgList = foldl app
 
 -- | Return 'True' if the argument binds the given 'Name'
 shadows :: Name -> GenericQ Bool

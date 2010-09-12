@@ -12,9 +12,9 @@ import qualified Data.Set as Set (fromList, toList)
 
 import Language.Haskell.Exts (
   Alt (Alt),
-  Binds (BDecls), Decl (PatBind, FunBind, InfixDecl),
+  Binds (BDecls), Boxed (Boxed), Decl (PatBind, FunBind, InfixDecl),
   Exp (App, Case, Con, Do, If, InfixApp, Lambda, LeftSection,
-    Let, List, Lit, Paren, RightSection, Tuple, Var),
+    Let, List, Lit, Paren, RightSection, Tuple, TupleSection, Var),
   GuardedAlt (GuardedAlt), GuardedAlts (UnGuardedAlt, GuardedAlts),
   Literal (Char, Frac, Int, String),
   Match (Match),
@@ -22,7 +22,7 @@ import Language.Haskell.Exts (
   Pat (PApp, PInfixApp, PList, PLit, PParen, PTuple, PVar, PWildCard),
   Name (Ident, Symbol), QName (Special, Qual, UnQual), QOp (QConOp, QVarOp),
   Rhs (UnGuardedRhs),
-  SpecialCon (Cons),
+  SpecialCon (Cons, TupleCon),
   SrcLoc (), -- (SrcLoc),
   Stmt (Generator, LetStmt, Qualifier),
   preludeFixities, prettyPrint)
@@ -128,6 +128,8 @@ step v (Var n) = need v (fromQName n)
 step v e@(App f x) = magic v e `orE` case argList e of
   LeftSection e o : x : xs -> yield $ unArgList (InfixApp e o x) xs
   RightSection o e : x : xs -> yield $ unArgList (InfixApp x o e) xs
+  f@(TupleSection _) : xs -> yield $ unArgList f xs
+  f@(Con (Special (TupleCon _ _))) : xs -> yield $ unArgList f xs
   -- note that since we matched against an App, es should be non-empty
   Lambda s ps e : es -> applyLambda s ps e es
    where
@@ -269,6 +271,7 @@ step v (Tuple xs) = case xs of
 -- Base cases
 step _ (LeftSection _ _) = Done
 step _ (RightSection _ _) = Done
+step _ (TupleSection _) = Done
 step _ (Lit _) = Done
 step _ (List []) = Done
 step _ (Con _) = Done
@@ -282,6 +285,17 @@ app (Con q) x | isOperator q = LeftSection x (QConOp q)
 app (Var q) x | isOperator q = LeftSection x (QVarOp q)
 app (LeftSection x op) y = InfixApp x op y
 app (RightSection op y) x = InfixApp x op y
+app (TupleSection es) x = go es id
+ where
+  go (Nothing : es) f = case sequence es of
+    Just es' -> Tuple $ f (x : es')
+    Nothing -> TupleSection $ map Just (f [x]) ++ es
+  go (Just e : es) f = go es (f . (e :))
+  go [] _ = error "app TupleSection: full section"
+app (Con (Special (TupleCon b i))) x
+  | i <= 1 = error "app TupleCon: i <= 0"
+  | b /= Boxed = todo "app TupleCon" b
+  | otherwise = TupleSection (Just x : replicate (i - 1) Nothing)
 app f x = App f x
 
 -- | 'True' if the name refers to a non-tuple operator. Tuples are excluded

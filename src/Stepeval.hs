@@ -66,7 +66,10 @@ data PatternMatch = NoMatch | MatchEval Eval | Matched [MatchResult]
 -- put the 'Exp' that was matched back into the context it came from, e.g.
 -- if you matched @[a,b,c]@ against @[1,2,3]@ then one of the 'MatchResult's
 -- would be approximately @'MatchResult' \"b\" 2 (\x -> [1,x,3])@
-data MatchResult = MatchResult Name Exp (Exp -> Exp)
+data MatchResult = MatchResult {
+  mrName :: Name,
+  mrExp :: Exp,
+  mrFunc :: (Exp -> Exp) }
 type Scope = [Decl]
 type Env = [Scope]
 
@@ -92,12 +95,6 @@ instance Show MatchResult where
     dropEq (x:xs) (d:ds) f
       | x == d = dropEq xs ds (f . (x:))
     dropEq s _ f = f (fixVar s)
-
-mrName :: MatchResult -> Name
-mrName (MatchResult n _ _) = n
-
-mrExp :: MatchResult -> Exp
-mrExp (MatchResult _ e _) = e
 
 -- | Map over e in @'Step' ('Eval' e)@
 liftE :: (Exp -> Exp) -> EvalStep -> EvalStep
@@ -595,7 +592,7 @@ patternMatch _ p q = todo "patternMatch _" (p, q)
 
 -- | Map over the function field of a 'MatchResult'.
 onMRFunc :: ((Exp -> Exp) -> (Exp -> Exp)) -> MatchResult -> MatchResult
-onMRFunc f (MatchResult n e g) = MatchResult n e (f g)
+onMRFunc f m@(MatchResult { mrFunc = g }) = m { mrFunc = f g }
 
 -- The tricky part about this is the third field of PatternMatch, which
 -- contains a function to put the matchresult - perhaps after some

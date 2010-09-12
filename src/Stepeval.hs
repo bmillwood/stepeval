@@ -1,4 +1,4 @@
-module Stepeval (eval, itereval, printeval, stepeval) where
+module Stepeval (Scope, eval, itereval, printeval, stepeval) where
 
 import Control.Applicative ((<$), (<$>), (<*>), (<|>))
 import Control.Monad (guard, join, replicateM)
@@ -29,12 +29,16 @@ import Language.Haskell.Exts (
 
 import Parenthise (deparen, enparenWith, scopeToFixities)
 
+-- | Evaluate an expression as completely as possible.
 eval :: Scope -> Exp -> Exp
 eval s = last . itereval s
 
+-- | Print each step of the evaluation of an expression.
 printeval :: Scope -> Exp -> IO ()
 printeval s = mapM_ (putStrLn . prettyPrint) . itereval s
 
+-- | Make a list of the evaluation steps of an expression.
+-- Note that @head (itereval s exp) == exp@
 itereval :: Scope -> Exp -> [Exp]
 itereval s e = e : unfoldr (fmap (join (,)) . stepeval s) e
 
@@ -42,6 +46,9 @@ itereval s e = e : unfoldr (fmap (join (,)) . stepeval s) e
 -- prelude functions, but it's more convenient in general.
 -- When we grow a proper Prelude of our own, it would be nice to use that
 -- instead.
+-- | Evaluate an expression by a single step, or give 'Nothing' if the
+-- evaluation failed (either because an error ocurred, or the expression was
+-- already as evaluated as possible)
 stepeval :: Scope -> Exp -> Maybe Exp
 stepeval s e = case step [s] e of
   Step (Eval e') -> Just (enparenWith fixes . deparen $ e')
@@ -49,18 +56,16 @@ stepeval s e = case step [s] e of
  where
   fixes = scopeToFixities s ++ preludeFixities
 
--- Sometimes evaluating a subexpression means evaluating an outer expression
 data Eval = EnvEval Decl | Eval Exp
   deriving Show
 data EvalStep = Failure | Done | Step Eval
   deriving Show
--- NoMatch is outright failure
--- MatchEval indicates that evaluation was necessary to make the match
 data PatternMatch = NoMatch | MatchEval Eval | Matched [MatchResult]
   deriving Show
--- The Exp -> Exp should reconstruct the original expression
--- matched against. This is essential sometimes to step a specific part of a
--- large expression
+-- | The result of a successful pattern match. The third field is meant to
+-- put the 'Exp' that was matched back into the context it came from, e.g.
+-- if you matched @[a,b,c]@ against @[1,2,3]@ then one of the 'MatchResult's
+-- would be approximately @'MatchResult' \"b\" 2 (\x -> [1,x,3])@
 data MatchResult = MatchResult Name Exp (Exp -> Exp)
 type Scope = [Decl]
 type Env = [Scope]
@@ -94,22 +99,29 @@ mrName (MatchResult n _ _) = n
 mrExp :: MatchResult -> Exp
 mrExp (MatchResult _ e _) = e
 
+-- | Map over e in @'Step' ('Eval' e)@
 liftE :: (Exp -> Exp) -> EvalStep -> EvalStep
 liftE f (Step (Eval e)) = Step (Eval (f e))
 liftE _ e = e
 
+-- | If either argument is a 'Step', return it, otherwise return the first.
 orE :: EvalStep -> EvalStep -> EvalStep
 orE r@(Step _) _ = r
 orE _ r@(Step _) = r
 orE r _ = r
 infixr 3 `orE`
 
+-- | Infix liftE.
+(|$|) :: (Exp -> Exp) -> EvalStep -> EvalStep
 (|$|) = liftE
 infix 4 |$|
 
+-- | @'Step' . 'Eval'@
 yield :: Exp -> EvalStep
 yield = Step . Eval
 
+-- | The basic workhorse of the module - step the given expression in the
+-- given environment.
 step :: Env -> Exp -> EvalStep
 
 -- Variables
@@ -266,6 +278,8 @@ step _ (Con _) = Done
 step _ (Lambda _ _ _) = Done
 step _ e = todo "step _" e
 
+-- | Given a list of expressions, evaluate the first one that isn't already
+-- evaluated and then recombine them with the given function.
 liststep :: Env -> ([Exp] -> Exp) -> [Exp] -> EvalStep
 liststep v f es = go es id
  where
@@ -276,11 +290,16 @@ liststep v f es = go es id
       Done -> go es (g . (e:))
       r -> r
 
+-- | Make a let-expression from a list of bindings and an expression. The
+-- list of bindings has unused members removed; if this results in an empty
+-- list, the expression is returned unaltered.
 mkLet :: Scope -> Exp -> Exp
 mkLet ds x = case tidyBinds x ds of
   [] -> x
   ds' -> Let (BDecls ds') x
 
+-- | Create a list of 'Decl' that bind the patterns of the 'MatchResult's
+-- to their corresponding expressions.
 matchesToScope :: [MatchResult] -> Scope
 matchesToScope = map $ \(MatchResult n e _) ->
   PatBind nowhere (PVar n) Nothing (UnGuardedRhs e) (BDecls [])
@@ -292,6 +311,7 @@ nowhere = undefined
 
 -- This code isn't very nice, largely because I anticipate it all being
 -- replaced eventually anyway.
+-- | Implements primitives like addition and comparison.
 magic :: Env -> Exp -> EvalStep
 magic v e = case e of
   App (App (Var p) x) y -> rhs (fromQName p) x y
@@ -328,6 +348,8 @@ magic v e = case e of
   bool op = mkOp (con . show) op
   mkOp f g m n = maybe Done (yield . f) $ g <$> unlit m <*> unlit n
 
+-- | Given an expression and a list of bindings, filter out bindings that
+-- aren't used in the expression.
 tidyBinds :: Exp -> Scope -> Scope
 tidyBinds e v = filter (`elem` keep) v
  where
@@ -345,6 +367,8 @@ tidyBinds e v = filter (`elem` keep) v
   unOp (VarOp n) = n
   unOp (ConOp n) = n
 
+-- | Continuing evaluation requires the value of the given name from the
+-- environment, so try to look it up and step it or substitute it.
 need :: Env -> Name -> EvalStep
 need v n = case envBreak ((Just n ==) . declName) v of
   (_, _, [], _) -> Done
@@ -360,6 +384,8 @@ need v n = case envBreak ((Just n ==) . declName) v of
     FunBind _ -> Done
     b -> todo "need case" b
 
+-- | Name bound by the equations. Error if not all the matches are for the
+-- same function.
 funName :: [Match] -> Name
 funName [] = error "No matches?"
 funName (Match _ n _ _ _ _ : ms) = foldr match n ms
@@ -367,6 +393,8 @@ funName (Match _ n _ _ _ _ : ms) = foldr match n ms
   match (Match _ m _ _ _ _) n | m == n = n
   match m n = error $ "Match names don't? " ++ show (m, n)
 
+-- | Counts the number of patterns on the LHS of function equations.
+-- Error if the patterns have different numbers of arguments
 funArity :: [Match] -> Int
 funArity [] = error "No matches?"
 funArity (Match _ n ps _ _ _ : ms) = foldr match (length ps) ms
@@ -398,6 +426,8 @@ funToCase ms@(Match s _ ps _ _ _ : _) = Lambda s qs $ Case e as
     map (\(GuardedRhs s t e) -> GuardedAlt s t e) rs
 -}
 
+-- | Given a pattern binding, replace one of the same name in the given
+-- scope, or 'Nothing' if it wasn't there.
 updateBind :: Decl -> Scope -> Maybe Scope
 updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
   (_, []) -> Nothing
@@ -409,17 +439,22 @@ updateBind p@(PatBind _ (PVar n) _ _ _) v = case break match v of
   match d = todo "updateBind match" d
 updateBind l _ = todo "updateBind" l
 
+-- | Find a declaration in the environment by matching on its 'declName'.
 envLookup :: Env -> Name -> Maybe Decl
 envLookup v n = case envBreak ((Just n ==) . declName) v of
   (_, _, [], _) -> Nothing
   (_, _, c : _, _) -> Just c
 
+-- | If the decl binds a pattern or function, return its name.
 declName :: Decl -> Maybe Name
 declName (PatBind _ (PVar m) _ _ _) = Just m
 declName (FunBind ms) = Just (funName ms)
 declName (InfixDecl _ _ _ _) = Nothing
 declName d = todo "declName" d
 
+-- | Given a list of lists, find the first item matching the predicate and
+-- return
+-- (lists with no match, takeWhile p list, dropWhile p list, lists remaining)
 envBreak :: (a -> Bool) -> [[a]] -> ([[a]], [a], [a], [[a]])
 envBreak _ [] = ([], [], [], [])
 envBreak p (x:xs) = case break p x of
@@ -428,10 +463,14 @@ envBreak p (x:xs) = case break p x of
  where
   (as, bs, cs, ds) = envBreak p xs
 
+-- | Assume the name is unqualified, and fetch the name in that case.
+-- Error otherwise.
 fromQName :: QName -> Name
 fromQName (UnQual n) = n
 fromQName q = error $ "fromQName: " ++ show q
 
+-- | Given a list of 'MatchResult', substitute the bindings wherever they
+-- are not shadowed.
 applyMatches :: [MatchResult] -> GenericT
 -- If it's not an Exp, just recurse into it, otherwise try to substitute...
 applyMatches ms x = recurse `extT` replaceOne $ x
@@ -449,9 +488,13 @@ applyMatches ms x = recurse `extT` replaceOne $ x
   -- Parameter here might be redundant - it's only called on x anyway
   notShadowed e = filter (not . flip shadows e . mrName) ms
 
+-- | Find a 'MatchResult' by name.
 mlookup :: Name -> [MatchResult] -> Maybe MatchResult
 mlookup m = foldr (\x r -> x <$ guard (m == mrName x) <|> r) Nothing
 
+-- | Produce a 'GenericT' that renames all instances of the given 'Name' to
+-- something else that isn't any of the given @['Name']@. Does not apply the
+-- rename where the name is shadowed.
 alpha :: Name -> [Name] -> GenericT
 alpha n avoid = everywhereBut (shadows n) (mkT $ replaceOne n m)
  where
@@ -462,6 +505,10 @@ alpha n avoid = everywhereBut (shadows n) (mkT $ replaceOne n m)
   genNames n xs i = map (n ++) (replicateM i xs) ++ genNames n xs (succ i)
   replaceOne n m r | n == r = m | otherwise = r
 
+-- | Returns 'True' if the 'Name' appears without a corresponding binding
+-- anywhere in the structure.
+-- Always returns 'True' for @>>=@ and @>>@ if there are any do-expressions
+-- present.
 isFreeIn :: Name -> GenericQ Bool
 isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))
  where
@@ -471,14 +518,17 @@ isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))
   isDo (Do _) = True
   isDo _ = False
 
+-- | Fetches a list of all 'Name's present but not bound in the argument.
 freeNames :: GenericQ [Name]
 freeNames e = filter (`isFreeIn` e) . Set.toList . Set.fromList $
   listify (const True) e
 
+-- | If the argument is 'Step', turn it into a 'MatchEval', else 'NoMatch'.
 peval :: EvalStep -> PatternMatch
 peval (Step e) = MatchEval e
 peval _ = NoMatch
 
+-- | Match a single pattern against a single expression.
 patternMatch :: Env -> Pat -> Exp -> PatternMatch
 -- Strip parentheses
 patternMatch v (PParen p) x = patternMatch v p x
@@ -543,13 +593,10 @@ patternMatch v (PApp n ps) q = case argList q of
 -- Fallback case
 patternMatch _ p q = todo "patternMatch _" (p, q)
 
+-- | Map over the function field of a 'MatchResult'.
 onMRFunc :: ((Exp -> Exp) -> (Exp -> Exp)) -> MatchResult -> MatchResult
 onMRFunc f (MatchResult n e g) = MatchResult n e (f g)
 
--- This function basically does multiple simultaneous pattern matches, e.g.
--- for a list or tuple of patterns. The fourth parameter tells you how to
--- put the list together if that becomes necessary for some reason (so it
--- might be the Tuple constructor, for example)
 -- The tricky part about this is the third field of PatternMatch, which
 -- contains a function to put the matchresult - perhaps after some
 -- modification - back into its original context.
@@ -557,6 +604,10 @@ onMRFunc f (MatchResult n e g) = MatchResult n e (f g)
 -- provided an evil Show instance for Exp -> Exp so you should be able to
 -- see its purpose in a bit of mucking about with ghci :)
 -- Obviously it starts off as id.
+-- | Carry out several simultaneous pattern matches, e.g. for lists or
+-- tuples of patterns. The given function is used to restore the list of
+-- expressions to their original context if necessary (so it might be the
+-- Tuple constructor, for example).
 matches :: Env -> [Pat] -> [Exp] -> ([Exp] -> Exp) -> PatternMatch
 matches _ [] [] _ = Matched []
 matches v ps xs f = go v ps xs id
@@ -583,8 +634,12 @@ matches v ps xs f = go v ps xs id
         Matched (map (onMRFunc ((f . g . (: es)) .)) xs ++ ys)
       (_, r) -> r
       -- Ran out of patterns before expressions or vice versa, fail
+      -- TODO: matches should get a [(Pat, Exp)] so the equality of length
+      -- is statically enforced.
   go _ _ _ _ = NoMatch
 
+-- | Deconstruct an infix or prefix application into
+-- @[function, arg1, arg2, ...]@. Spine-strict by the nature of application.
 argList :: Exp -> [Exp]
 argList = reverse . atl
  where
@@ -595,6 +650,9 @@ argList = reverse . atl
     QConOp n -> Con n]
   atl e = [e]
 
+-- | Take a list of @[function, arg1, arg2, ...]@ and recombine it into
+-- an infix app if the function has an operator name or a normal application
+-- otherwise.
 unArgList :: [Exp] -> Exp
 unArgList (e:es@(x:ys)) = case e of
   Con q@(Special Cons) -> rhs (QConOp q) x ys
@@ -607,6 +665,7 @@ unArgList (e:es@(x:ys)) = case e of
 unArgList (e:es) = foldl App e es
 unArgList [] = error "unArgList: no expressions"
 
+-- | Return 'True' if the argument binds the given 'Name'
 shadows :: Name -> GenericQ Bool
 shadows n = mkQ False exprS `extQ` altS `extQ` matchS
  where
@@ -619,6 +678,7 @@ shadows n = mkQ False exprS `extQ` altS `extQ` matchS
   altS (Alt _ p _ _) = anywhere (== PVar n) p
   matchS (Match _ _ ps _ _ _) = anywhere (== PVar n) ps
 
+-- | 'True' if the predicate holds anywhere inside the structure.
 anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool
 anywhere p = everything (||) (mkQ False p)
 

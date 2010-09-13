@@ -19,7 +19,8 @@ import Language.Haskell.Exts (
   Literal (Char, Frac, Int, String),
   Match (Match),
   Op (ConOp, VarOp),
-  Pat (PApp, PInfixApp, PList, PLit, PParen, PTuple, PVar, PWildCard),
+  Pat (PApp, PAsPat, PInfixApp, PList, PLit, PParen, PTuple, PVar,
+    PWildCard),
   Name (Ident, Symbol), QName (Special, Qual, UnQual), QOp (QConOp, QVarOp),
   Rhs (UnGuardedRhs),
   SpecialCon (Cons, TupleCon),
@@ -573,6 +574,10 @@ patternMatch v p (Paren x) = patternMatch v p x
 -- Patterns that always match
 patternMatch _ (PWildCard) _ = Matched []
 patternMatch _ (PVar n) x = Matched [MatchResult n x id]
+-- As-patterns
+patternMatch v (PAsPat n p) x = case patternMatch v p x of
+  Matched ms -> Matched (MatchResult n x id : ms)
+  r -> r
 -- Let-expressions should skip right to the interesting bit
 patternMatch v p (Let (BDecls ds) x) = case patternMatch (ds:v) p x of
   MatchEval (Eval e) -> MatchEval . Eval $ mkLet ds e
@@ -697,14 +702,17 @@ unArgList = foldl app
 shadows :: Name -> GenericQ Bool
 shadows n = mkQ False exprS `extQ` altS `extQ` matchS
  where
-  exprS (Lambda _ ps _) = anywhere (== PVar n) ps
+  exprS (Lambda _ ps _) = any patS ps
   exprS (Let (BDecls bs) _) = any letS bs
    where
-    letS (PatBind _ p _ _ _) = anywhere (== PVar n) p
+    letS (PatBind _ p _ _ _) = patS p
     letS _ = False
   exprS _ = False
-  altS (Alt _ p _ _) = anywhere (== PVar n) p
-  matchS (Match _ _ ps _ _ _) = anywhere (== PVar n) ps
+  altS (Alt _ p _ _) = patS p
+  matchS (Match _ _ ps _ _ _) = any patS ps
+  patS (PVar m) = m == n
+  patS (PAsPat m p) = m == n || patS p
+  patS p = or $ gmapQ (mkQ False patS) p
 
 -- | 'True' if the predicate holds anywhere inside the structure.
 anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool

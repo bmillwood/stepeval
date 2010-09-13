@@ -1,0 +1,13 @@
+let n = 2 in (\m n -> case m of n@p -> n + p) n 1
+
+let n = 2 in (\m n0 -> case m of n@p -> n + p) n 1
+
+let n = 2 in case n of n@p -> n + p
+
+let n = 2 in n + n
+
+let n = 2 in 2 + n
+
+2 + 2
+
+4

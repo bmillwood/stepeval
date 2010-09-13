@@ -68,8 +68,8 @@ runTest args (t, b) = handle showEx $ case takeExtension t of
        verbose = elem "-v" args || elem "--verbose" args
        a ==> b = maybe False (=== b) (stepeval [] a)
        a === b = squidge a == squidge b
-       paragraphs = foldr p [""] . lines
-       p "" bs = "" : bs
-       p a ~(b:bs) = (a ++ '\n':b) : bs
+       paragraphs = uncurry (:) . foldr p ("", []) . lines
+       p "" (b, bs) = ("", b : bs)
+       p a (b, bs) = (a ++ '\n':b, bs)
        squidge = everywhere (mkT . const $ SrcLoc "" 0 0)
 

@@ -53,7 +53,11 @@ Executable test
   Main-is: Test.hs
 
   if flag(test)
-    Build-Depends: directory >= 1.0 && < 1.1, filepath >= 1.1 && < 1.2
+    Build-Depends: containers >= 0.1 && < 0.4,
+                   directory >= 1.0 && < 1.1,
+                   extensible-exceptions >= 0.1 && < 0.2,
+                   filepath >= 1.1 && < 1.2,
+                   haskell-src-exts >= 1.6 && < 1.10
 
     if flag(old)
       Build-Depends: base >= 3 && < 4

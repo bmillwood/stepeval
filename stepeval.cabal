@@ -1,6 +1,4 @@
--- Technically a lie, Source-Repo requires 1.6, but 1.2 seems to be ok with
--- ignoring it
-Cabal-Version: >= 1.2
+Cabal-Version: >= 1.6
 
 Name:     stepeval
 Version:  0.1
@@ -70,7 +68,6 @@ Executable test
   else
     Buildable: False
 
--- This is illegal with Cabal pre-1.6 but luckily it's not a fatal error
 Source-Repository head
   type:     git
   location: git://github.com/benmachine/stepeval.git

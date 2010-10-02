@@ -22,7 +22,7 @@ License:      BSD3
 License-file: LICENSE
 
 Build-type:         Simple
-Tested-with:        GHC == 6.8.2, GHC == 6.12.1
+Tested-with:        GHC == 6.12.3
 Extra-source-files: testsuite/*.step testsuite/*.eval
 
 Flag old

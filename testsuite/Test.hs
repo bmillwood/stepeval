@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Control.Applicative
-import Control.Exception.Extensible
+import Control.Exception
 import Control.Monad
 import Data.Generics
 import Data.List

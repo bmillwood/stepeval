@@ -248,8 +248,7 @@ step _ e@(Case _ _) = todo "step Case" e
 step _ (Let (BDecls []) e) = yield e
 step v (Let (BDecls bs) e) = case step (bs : v) e of
   Step (Eval e') -> yield $ mkLet bs e'
-  Step r@(EnvEval e') -> Step . maybe r (Eval . flip mkLet e) $
-    updateBind e' bs
+  Step (EnvEval e') -> Step $ tryUpdateBind e' e bs
   r -> r
 
 -- If
@@ -469,6 +468,12 @@ funToCase ms@(Match s _ ps _ _ _ : _) = Lambda s qs $ Case e as
     map (\(GuardedRhs s t e) -> GuardedAlt s t e) rs
 -}
 
+-- | Given a pattern binding, an expression, and a scope, try to update the
+-- scope with the binding (cf. 'updateBind') - if succesful construct an
+-- updated let-expression, otherwise produce an EnvEval with the binding.
+tryUpdateBind :: Decl -> Exp -> Scope -> Eval
+tryUpdateBind e' e = maybe (EnvEval e') (Eval . flip mkLet e) . updateBind e'
+
 -- | Given a pattern binding, replace one of the same name in the given
 -- scope, or 'Nothing' if it wasn't there.
 updateBind :: Decl -> Scope -> Maybe Scope
@@ -585,8 +590,7 @@ patternMatch v (PAsPat n p) x = case patternMatch v p x of
 -- Let-expressions should skip right to the interesting bit
 patternMatch v p (Let (BDecls ds) x) = case patternMatch (ds:v) p x of
   MatchEval (Eval e) -> MatchEval . Eval $ mkLet ds e
-  MatchEval r@(EnvEval e) -> MatchEval . maybe r (Eval . flip mkLet x) $
-    updateBind e ds
+  MatchEval (EnvEval e) -> MatchEval $ tryUpdateBind e x ds
   r -> r
 patternMatch _ _ (Let bs _) = todo "patternMatch Let" bs
 -- Variables can only match trivial patterns

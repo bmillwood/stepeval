@@ -1,5 +1,6 @@
 module Stepeval (Scope, eval, itereval, printeval, stepeval) where
 
+import Control.Arrow (first)
 import Control.Applicative ((<$), (<$>), (<*>), (<|>))
 import Control.Monad (guard, join, replicateM)
 import Data.Foldable (foldMap)
@@ -357,7 +358,7 @@ magic v e = case e of
   InfixApp x (QVarOp o) y -> rhs (fromQName o) x y
   _ -> Done
  where
-  rhs p@(Symbol s) x y = case lookup s ops of
+  rhs p x y = case lookup p primitives of
     Just (+*) -> case (step v x, step v y) of
       (Done, Done) -> x +* y
       (Done, y') -> InfixApp x op |$| y'
@@ -365,7 +366,6 @@ magic v e = case e of
      where
       op = QVarOp (UnQual p)
     Nothing -> Done
-  rhs _ _ _ = Done
   lit x = case properFraction (toRational x) of
     (i, 0) -> Lit (Int i)
     (i, r) -> Lit (Frac (toRational i + r))
@@ -373,6 +373,8 @@ magic v e = case e of
   unlit (Lit (Int i)) = Just $ toRational i
   unlit (Lit (Frac r)) = Just r
   unlit _ = Nothing
+  primitives = map (first Symbol) ops ++
+    map (first Ident) funs
   ops = [
     ("+", num (+)),
     ("*", num (*)),
@@ -383,6 +385,8 @@ magic v e = case e of
     (">=", bool (>=)),
     ("==", bool (==)),
     ("/=", bool (/=))]
+  funs = [
+    ("div", mkOp (Lit . Int . floor) (/))]
   num op = mkOp lit op
   bool op = mkOp (con . show) op
   mkOp f g m n = maybe Done (yield . f) $ g <$> unlit m <*> unlit n

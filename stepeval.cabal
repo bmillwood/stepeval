@@ -33,7 +33,7 @@ Executable stepeval
   Build-Depends: base >= 4 && < 4.4,
                  containers >= 0.1 && < 0.5,
                  haskell-src-exts >= 1.6 && < 1.11,
-                 syb >= 0.1 && < 0.3
+                 syb >= 0.1 && < 0.4
 
   GHC-Options:    -W
   Hs-Source-Dirs: src
@@ -50,7 +50,7 @@ Executable test
                    filepath >= 1.1 && < 1.3,
                    haskell-src-exts >= 1.6 && < 1.11,
                    MaybeT-monads-tf == 0.2.*,
-                   syb >= 0.1 && < 0.3,
+                   syb >= 0.1 && < 0.4,
                    transformers == 0.2.*
 
     GHC-Options:    -W

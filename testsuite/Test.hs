@@ -3,8 +3,11 @@ module Main (main) where
 import Control.Applicative
 import Control.Exception
 import Control.Monad
+import Control.Monad.Maybe (MaybeT, runMaybeT)
+import Control.Monad.IO.Class (liftIO)
 import Data.Generics
 import Data.List
+import Data.Maybe (mapMaybe)
 import Language.Haskell.Exts
 import System.Directory
 import System.Environment
@@ -33,43 +36,80 @@ genMain args = case filter (/= "--gen") args of
   getLines = (:) <$> getLine <*> orNil getLines
   orNil = handle (\e -> pure [] `const` (e :: IOException))
 
-testMain args = getTests args >>= mapM_ (runTest args)
+testMain :: [String] -> IO ()
+testMain args = () <$ runMaybeT (join $ runTests <$> parseOpts <*> getTests files)
+ where
+  (opts, files) = partition ((== "-") . take 1) args
+  parseOpts = case opts of
+    [] -> return False
+    ["-v"] -> return True
+    ["--verbose"] -> return True
+    _ -> liftIO (putStrLn "Failed to parse options") >> mzero
 
-getTests args = case filter ((/= "-") . take 1) args of
- [] -> setCurrentDirectory "testsuite" >>
-  sort <$> getDirectoryContents "." >>=
-  filterM doesFileExist >>=
-  mapM readTest
- fns -> mapM readTest fns
- where readTest t = ((,) t) <$> readFile t
+getTests :: [FilePath] -> MaybeT IO [(Bool, FilePath, String)]
+getTests fns = case fns of
+  [] -> liftIO $ setCurrentDirectory "testsuite" >>
+    sort <$> getDirectoryContents "." >>=
+    filterM doesFileExist >>=
+    mapM readTest . mapMaybe categorise
+  _ -> foldr getTest (return []) fns
+ where
+  readTest (dotstep, fn) = ((,,) dotstep fn) <$> readFile fn
+  categorise fn = case takeExtension fn of
+    ".step" -> Just (True, fn)
+    ".eval" -> Just (False, fn)
+    _ -> Nothing
+  getTest fn r = do
+    b <- liftIO $ doesFileExist fn
+    when (not b) $ do
+      liftIO . putStrLn $ "File `" ++ fn ++ "' does not exist. :("
+      mzero
+    case categorise fn of
+      Just t -> (:) <$> liftIO (readTest t) <*> r
+      Nothing -> do
+        liftIO . putStrLn $
+          "File `" ++ fn ++ "' does not appear to be a test file!"
+        mzero
 
-runTest args (t, b) = handle showEx $ case takeExtension t of
- ".step" -> go . map parseExp $ paragraphs b
- ".eval" -> case map parseExp $ paragraphs b of
-  [ParseOk i, ParseOk o]
-   | ei === o -> success
-   | otherwise -> failure (output ei) (output o)
-   where ei = eval [] i
-  rs -> error $ "unexpected test parse result: " ++ show rs
- _ -> return ()
- where success = putStrLn $ t ++ ": success!"
-       failure a b = putStrLn $ t ++ ": failure:\n" ++ a ++ '\n':b
-       showEx e = putStrLn $ t ++ ": error: " ++ show (e :: ErrorCall)
-       go [] = error $ t ++ ": empty test?"
-       go [_] = success
-       go (ParseOk e:r@(ParseOk e'):es)
-        | e ==> e' = go (r:es)
-        | otherwise = failure a b
-        where a = maybe "Nothing" presentable $ stepeval [] e
-              b = presentable e'
-              presentable = output . squidge
-       go _ = putStrLn $ t ++ ": parse failed!"
-       output | verbose = show | otherwise = prettyPrint
-       verbose = elem "-v" args || elem "--verbose" args
-       a ==> b = maybe False (=== b) (stepeval [] a)
-       a === b = squidge a == squidge b
-       paragraphs = uncurry (:) . foldr p ("", []) . lines
-       p "" (b, bs) = ("", b : bs)
-       p a (b, bs) = (a ++ '\n':b, bs)
-       squidge = everywhere (mkT . const $ SrcLoc "" 0 0)
+runTests :: Bool -> [(Bool, FilePath, String)] -> MaybeT IO ()
+runTests verbose tests = do
+  forM_ tests $ \ (dotstep, fn, test) ->
+    liftIO . handle (showEx fn) $ case runTest verbose dotstep test of
+      Nothing -> putStrLn $ fn ++ ": success!"
+      Just err -> putStrLn $ fn ++ ": " ++ err
+ where
+  showEx fn err = putStrLn $ fn ++ ": error: " ++ show (err :: ErrorCall)
 
+-- | Nothing on success, or Just error
+runTest :: Bool -- ^ Run in verbose mode?
+  -> Bool -- ^ True for .step, False for .eval
+  -> String -- ^ Test text
+  -> Maybe String
+runTest verbose dotstep b
+  | dotstep = go exps
+  | otherwise = case exps of
+      [ParseOk i, ParseOk o]
+        | ei === o -> Nothing
+        | otherwise -> notequal (output ei) (output o)
+       where
+        ei = eval [] i
+      rs -> Just $ "unexpected test parse result: " ++ show rs
+ where
+  exps = map parseExp $ paragraphs b
+  notequal a b = Just . intercalate "\n" $ ["failure:", a, b]
+  go [] = Just "empty test?"
+  go [_] = Nothing
+  go (ParseOk e:r@(ParseOk e'):es)
+    | e ==> e' = go (r:es)
+    | otherwise = notequal a b
+   where
+    a ==> b = maybe False (=== b) (stepeval [] a)
+    a = maybe "Nothing" output $ stepeval [] e
+    b = output e'
+  go _ = Just "parse failed!"
+  output | verbose = show . squidge | otherwise = prettyPrint
+  a === b = squidge a == squidge b
+  paragraphs = uncurry (:) . foldr p ("", []) . lines
+  p "" (b, bs) = ("", b : bs)
+  p a (b, bs) = (a ++ '\n':b, bs)
+  squidge = everywhere (mkT . const $ SrcLoc "" 0 0)

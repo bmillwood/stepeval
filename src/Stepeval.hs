@@ -226,9 +226,11 @@ step v (Case e alts@(Alt l p a bs@(BDecls ds) : as)) =
           Step (Eval q') -> yield . mkCase . newAlt $ q'
           -- pattern matching nested this deeply is bad for readability
           r@(Step (EnvEval
-            (PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])))) ->
+            b@(PatBind _ (PVar n) _ (UnGuardedRhs e) (BDecls [])))) ->
             case mlookup n rs of
-              Nothing -> r
+              Nothing -> case updateBind b ds of
+                Nothing -> r
+                Just ds' -> yield $ Case e (Alt l p a (BDecls ds') : as)
               Just (MatchResult _ _ r) -> yield $ Case (r e) alts
           r -> r
         a -> todo "step Case GuardedAlts" a

@@ -37,7 +37,9 @@ genMain args = case filter (/= "--gen") args of
   orNil = handle (\e -> pure [] `const` (e :: IOException))
 
 testMain :: [String] -> IO ()
-testMain args = () <$ runMaybeT (join $ runTests <$> parseOpts <*> getTests files)
+testMain args = fmap (const ()) . runMaybeT $ do
+  (verbose, tests) <- (,) <$> parseOpts <*> getTests files
+  liftIO $ runTests verbose tests
  where
   (opts, files) = partition ((== "-") . take 1) args
   parseOpts = case opts of
@@ -71,14 +73,18 @@ getTests fns = case fns of
           "File `" ++ fn ++ "' does not appear to be a test file!"
         mzero
 
-runTests :: Bool -> [(Bool, FilePath, String)] -> MaybeT IO ()
+runTests :: Bool -> [(Bool, FilePath, String)] -> IO ()
 runTests verbose tests = do
-  forM_ tests $ \ (dotstep, fn, test) ->
-    liftIO . handle (showEx fn) $ case runTest verbose dotstep test of
-      Nothing -> putStrLn $ fn ++ ": success!"
-      Just err -> putStrLn $ fn ++ ": " ++ err
+  results <- forM tests $ \ (dotstep, fn, test) ->
+    handle (showEx fn) . fmap ((,) fn) . evaluate $ runTest verbose dotstep test
+  (passes, failures) <- foldM count (0, 0) results
+  putStrLn "-- Results:"
+  putStrLn . unwords $ [show passes, "tests passed,", show failures, "failed"]
  where
-  showEx fn err = putStrLn $ fn ++ ": error: " ++ show (err :: ErrorCall)
+  showEx fn err = return (fn, Just $ "error: " ++ show (err :: ErrorCall))
+  count (ps, fs) (_, Nothing) = return (ps + 1, fs)
+  count (ps, fs) (fn, Just err) =
+    (ps, fs + 1) <$ (putStr . concat) [fn, ": ", err, "\n\n"]
 
 -- | Nothing on success, or Just error
 runTest :: Bool -- ^ Run in verbose mode?

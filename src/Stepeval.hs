@@ -5,7 +5,7 @@ import Control.Applicative ((<$), (<$>), (<*>), (<|>))
 import Control.Monad (guard, join, replicateM)
 import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Monoid (Endo (Endo, appEndo))
 import Data.Generics (GenericQ, GenericT, Typeable,
   everything, everywhereBut, extQ, extT, gmapQ, gmapT, listify, mkQ, mkT)
@@ -419,7 +419,7 @@ need v n = case envBreak ((Just n ==) . declName) v of
   (as, bs, c : cs, ds) -> case c of
     PatBind s (PVar n) t (UnGuardedRhs e) (BDecls []) ->
       case step ((bs ++ cs) : ds) e of
-        Done -> case foldr (maybe id (:) . envLookup as) [] (freeNames e) of
+        Done -> case mapMaybe (envLookup as) $ freeNames e of
           [] -> yield e
           xs -> todo "panic" xs
         Step (Eval e') -> Step . EnvEval $

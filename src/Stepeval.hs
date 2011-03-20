@@ -714,15 +714,15 @@ shadows n = mkQ False exprS `extQ` altS `extQ` matchS
  where
   exprS (Lambda _ ps _) = any patS ps
   exprS (Let (BDecls bs) _) = any letS bs
-   where
-    letS (PatBind _ p _ _ _) = patS p
-    letS _ = False
   exprS _ = False
-  altS (Alt _ p _ _) = patS p
+  altS (Alt _ p _ (BDecls bs)) = patS p || any letS bs
+  altS a = todo "shadows altS" a
   matchS (Match _ _ ps _ _ _) = any patS ps
   patS (PVar m) = m == n
   patS (PAsPat m p) = m == n || patS p
   patS p = or $ gmapQ (mkQ False patS) p
+  letS (PatBind _ p _ _ _) = patS p
+  letS _ = False
 
 -- | 'True' if the predicate holds anywhere inside the structure.
 anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool

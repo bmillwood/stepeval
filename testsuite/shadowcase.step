@@ -1,0 +1,30 @@
+let n = 2 in
+  (\ m n ->
+     n +
+       case 0 of
+           p -> n + p
+             where n = 10)
+    n
+    1
+
+let n = 2 in
+  (\ m n0 ->
+     n0 +
+       case 0 of
+           p -> n + p
+             where n = 10)
+    n
+    1
+
+1 +
+  case 0 of
+      p -> n + p
+        where n = 10
+
+1 + let n = 10 in n + 0
+
+1 + (10 + 0)
+
+1 + 10
+
+11

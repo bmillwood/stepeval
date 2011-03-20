@@ -3,7 +3,7 @@ module Main (main) where
 import Control.Applicative
 import Control.Exception
 import Control.Monad
-import Control.Monad.Maybe (MaybeT, runMaybeT)
+import Control.Monad.Trans.Maybe (MaybeT, runMaybeT)
 import Control.Monad.IO.Class (liftIO)
 import Data.Generics
 import Data.List

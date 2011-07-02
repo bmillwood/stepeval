@@ -1,4 +1,4 @@
-module Stepeval (Scope, eval, itereval, printeval, stepeval) where
+module Language.Haskell.Stepeval (Scope, eval, itereval, printeval, stepeval) where
 
 import Control.Arrow (first)
 import Control.Applicative ((<$), (<$>), (<*>), (<|>))

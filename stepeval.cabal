@@ -29,6 +29,16 @@ Flag test
   Description: Build the testing application
   Default:     False
 
+Library
+  Build-Depends: base >= 4 && < 4.4,
+                 containers >= 0.1 && < 0.5,
+                 haskell-src-exts >= 1.6 && < 1.11,
+                 syb >= 0.1 && < 0.4
+  Exposed-modules: Language.Haskell.Stepeval
+  Other-modules: Parenthise
+  GHC-Options:    -W
+  Hs-Source-Dirs: src
+
 Executable stepeval
   Build-Depends: base >= 4 && < 4.4,
                  containers >= 0.1 && < 0.5,
@@ -38,7 +48,7 @@ Executable stepeval
   GHC-Options:    -W
   Hs-Source-Dirs: src
   Main-is:        Main.hs
-  Other-Modules:  Stepeval, Parenthise
+  Other-Modules:  Language.Haskell.Stepeval, Parenthise
 
 Executable test
   Main-is: Test.hs
@@ -55,7 +65,7 @@ Executable test
 
     GHC-Options:    -W
     Hs-Source-Dirs: src testsuite
-    Other-Modules:  Stepeval, Parenthise
+    Other-Modules:  Language.Haskell.Stepeval, Parenthise
   else
     Buildable: False
 

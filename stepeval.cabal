@@ -1,7 +1,7 @@
 Cabal-Version: >= 1.6
 
 Name:     stepeval
-Version:  0.1
+Version:  0.2
 Category: Language
 Synopsis: A tool for displaying the evaluation of a Haskell expression
 
@@ -36,7 +36,7 @@ Library
                  syb >= 0.1 && < 0.4
   Exposed-modules: Language.Haskell.Stepeval
   Other-modules: Parenthise
-  GHC-Options:    -W
+  GHC-Options:    -O2 -W
   Hs-Source-Dirs: src
 
 Executable stepeval

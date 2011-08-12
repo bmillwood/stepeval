@@ -5,8 +5,11 @@ import Language.Haskell.Exts
 
 scopeToFixities :: [Decl] -> [Fixity]
 scopeToFixities = concatMap dToF
- where dToF (InfixDecl _ a i os) = map (Fixity a i) os
-       dToF _ = []
+ where
+  dToF (InfixDecl _ a i os) = map (Fixity a i . UnQual . unOp) os
+  dToF _ = []
+  unOp (VarOp n) = n
+  unOp (ConOp n) = n
 
 deparen :: Exp -> Exp
 deparen = everywhere (mkT dp)
@@ -72,12 +75,11 @@ appIf f p x
  | otherwise = x
 
 qFix :: [Fixity] -> QOp -> Fixity
-qFix xs (QVarOp (UnQual q)) = getFix xs (VarOp q)
-qFix xs (QConOp (UnQual q)) = getFix xs (ConOp q)
-qFix xs (QConOp (Special Cons)) = getFix xs (ConOp (Symbol ":"))
-qFix _ q = error $ "qFix: " ++ show q
+qFix xs (QVarOp q) = getFix xs q
+qFix xs (QConOp (Special Cons)) = getFix xs (UnQual (Symbol ":"))
+qFix xs (QConOp q) = getFix xs q
 
-getFix :: [Fixity] -> Op -> Fixity
+getFix :: [Fixity] -> QName -> Fixity
 getFix xs o = foldr
  (\f@(Fixity _ _ p) r -> if o == p then f else r)
  (Fixity AssocLeft 9 o) xs

@@ -26,46 +26,61 @@ Build-type:         Simple
 Tested-with:        GHC == 6.12.3, GHC == 7.0.1
 Extra-source-files: testsuite/*.step testsuite/*.eval
 
+Flag program
+  Description: Build the CLI/CGI tool
+  Default:     True
+
 Flag test
   Description: Build the testing application
   Default:     False
 
 Library
-  Build-Depends: base >= 4 && < 4.4,
-                 containers >= 0.1 && < 0.5,
-                 haskell-src-exts >= 1.6 && < 1.11,
-                 syb >= 0.1 && < 0.4
   Exposed-modules: Language.Haskell.Stepeval
-  Other-modules: Parenthise
+  Other-modules:   Parenthise
+
+  Build-Depends:
+      base >= 4 && < 4.4,
+      containers >= 0.1 && < 0.5,
+      haskell-src-exts >= 1.6 && < 1.11,
+      syb >= 0.1 && < 0.4
+
   GHC-Options:    -W
   Hs-Source-Dirs: src
 
 Executable stepeval
-  Build-Depends: base >= 4 && < 4.4,
-                 containers >= 0.1 && < 0.5,
-                 haskell-src-exts == 1.11.*,
-                 syb >= 0.1 && < 0.4
+  Main-is: Main.hs
 
-  GHC-Options:    -W
-  Hs-Source-Dirs: src
-  Main-is:        Main.hs
-  Other-Modules:  Language.Haskell.Stepeval, Parenthise
+  if flag(program)
+    Hs-Source-Dirs: src
+    Other-Modules:  Language.Haskell.Stepeval, Parenthise
+
+    Build-Depends:
+        base >= 4 && < 4.4,
+        containers >= 0.1 && < 0.5,
+        haskell-src-exts == 1.11.*,
+        syb >= 0.1 && < 0.4
+
+    GHC-Options:    -W
+  else
+    Buildable: False
 
 Executable test
   Main-is: Test.hs
 
   if flag(test)
-    Build-Depends: base >= 4 && < 4.4,
-                   containers >= 0.1 && < 0.5,
-                   directory >= 1.0 && < 1.2,
-                   filepath >= 1.1 && < 1.3,
-                   haskell-src-exts == 1.11.*,
-                   syb >= 0.1 && < 0.4,
-                   transformers == 0.2.*
-
-    GHC-Options:    -W
     Hs-Source-Dirs: src testsuite
     Other-Modules:  Language.Haskell.Stepeval, Parenthise
+
+    Build-Depends:
+        base >= 4 && < 4.4,
+        containers >= 0.1 && < 0.5,
+        directory >= 1.0 && < 1.2,
+        filepath >= 1.1 && < 1.3,
+        haskell-src-exts == 1.11.*,
+        syb >= 0.1 && < 0.4,
+        transformers == 0.2.*
+
+    GHC-Options:    -W
   else
     Buildable: False
 

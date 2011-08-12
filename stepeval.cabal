@@ -3,21 +3,22 @@ Cabal-Version: >= 1.6
 Name:     stepeval
 Version:  0.2
 Category: Language
-Synopsis: A tool for displaying the evaluation of a Haskell expression
+Synopsis: Evaluating a Haskell expression step-by-step
 
 Description:
-    stepeval is a tool that can operate as a command-line utility
-    or CGI script. In either case, it is given a Haskell
-    expression in string form, applies a single evaluation
-    operation (e.g. pattern matching, lambda application), and
-    prints the result, while also feeding it back into its
-    evaluation mechanism until the expression cannot be evaluated
-    any further, or in the case of the CGI script a time limit
-    has expired.
+    stepeval operates on haskell-src-exts ASTs, performing a single
+    evaluation step (e.g. pattern matching, function application) at a
+    time.
+    .
+    stepeval comes bundled with an executable that can operate as a
+    command-line utility or a CGI script. In either case it takes an
+    expression input as a string and displays each step of its
+    evaluation, until it reaches weak head normal form or, in the case of
+    the CGI script, a time limit expires.
 
 Author:       Ben Millwood <haskell@benmachine.co.uk>
 Maintainer:   Ben Millwood <haskell@benmachine.co.uk>
-Copyright:    2010 Ben Millwood
+Copyright:    2010-2011 Ben Millwood
 License:      BSD3
 License-file: LICENSE
 

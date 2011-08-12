@@ -1,6 +1,8 @@
 module Parenthise (deparen, enparen, enparenWith, scopeToFixities) where
 
 import Data.Generics (GenericT, everywhere, extT, gmapT, mkT)
+import Data.Foldable (foldMap)
+import Data.Monoid (Any (Any, getAny))
 import Language.Haskell.Exts
 
 scopeToFixities :: [Decl] -> [Fixity]
@@ -31,12 +33,13 @@ parenE xs (Let (BDecls bs) e) = Let (BDecls bs') e'
        e' = parenE xs' e
 
 parenE xs (App f x) = App (app fp f) (app xp x)
- where app p x = parenIf p $ parenE xs x
-       fp x = isLet x || isLambda x || isIApp x
-       xp x = isLet x || isLambda x || isIApp x || isApp x
+ where
+  app ps x = parenIf (anyP ps) $ parenE xs x
+  fp = [isLet, isLambda, isIApp]
+  xp = [isLet, isLambda, isIApp, isApp]
 
 parenE xs (InfixApp l p r)
- | isLet l || isLambda l = parenE xs $ InfixApp (Paren l) p r
+  | anyP [isLet, isLambda] l = parenE xs $ InfixApp (Paren l) p r
 
 parenE xs (InfixApp l p r@(InfixApp _ q _))
  | qf > pf = recurse
@@ -93,4 +96,10 @@ isIApp (InfixApp {}) = True
 isIApp _ = False
 isApp (App {}) = True
 isApp _ = False
+
+anyP :: [a -> Bool] -> a -> Bool
+anyP = result getAny . foldMap (result Any)
+
+result :: (r -> r') -> (a -> r) -> (a -> r')
+result = (.)
 

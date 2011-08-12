@@ -36,7 +36,7 @@ Library
                  syb >= 0.1 && < 0.4
   Exposed-modules: Language.Haskell.Stepeval
   Other-modules: Parenthise
-  GHC-Options:    -O2 -W
+  GHC-Options:    -W
   Hs-Source-Dirs: src
 
 Executable stepeval

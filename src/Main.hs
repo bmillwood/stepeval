@@ -1,5 +1,7 @@
 module Main (cgiMain, cliMain, main) where
 
+import Language.Haskell.Stepeval
+
 import Control.Applicative
 import Control.Concurrent
 import Control.Exception
@@ -8,7 +10,6 @@ import Data.Char
 import Language.Haskell.Exts
 import Numeric
 import Prelude hiding (catch)
-import Stepeval
 import System.Environment
 import System.IO
 import Text.Printf

@@ -1,4 +1,4 @@
 :set -W
 :module Language.Haskell.Exts Data.Generics
 :def parse return . ("let ParseOk e = parseExp " ++) . (++ "\ne") . show
-:load *Stepeval Main
+:load *Language.Haskell.Stepeval Parenthise Main

@@ -13,7 +13,7 @@ import System.Directory
 import System.Environment
 import System.FilePath
 
-import Stepeval
+import Language.Haskell.Stepeval
 
 main = do
   args <- getArgs

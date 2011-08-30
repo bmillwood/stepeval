@@ -1,9 +1,15 @@
-stepeval is a tool that can operate as a command-line utility or CGI script.
-In either case, it is given a Haskell expression in string form, applies a
-single evaluation operation (e.g. pattern matching, lambda application), and
-prints the result, while also feeding it back into its evaluation mechanism
-until the expression cannot be evaluated any further, or in the case of the
-CGI script a time limit has expired.
+stepeval operates on haskell-src-exts ASTs, performing a single
+evaluation step (e.g. pattern matching, function application) at a time.
+
+stepeval comes bundled with an executable that can operate as a
+command-line utility or a CGI script. In either case it takes an
+expression input as a string and displays each step of its evaluation,
+until it reaches weak head normal form or, in the case of the CGI
+script, a time limit expires.
+
+stepeval is very much incomplete; it has a raft of unimplemented
+features and three failing testcases, one of which is pretty basic. Use
+at your own risk!
 
 Contact: haskell at benmachine dot co dot uk
  or via IRC: benmachine on Freenode or QuakeNet
@@ -20,9 +26,10 @@ relax them; if it works, tell me!
 
 TODO:
 
-In recent times there's been a tiny little tendency to prop up the old
-architecture in the interests of avoiding radical restructurings. As a
-result some design decisions need serious re-examination.
+Rewrite from scratch, after having read the literature about how to
+evaluate functional languages properly. Perhaps leaving it in syntax
+form is basically unsatisfactory, and the first thing I should do is a
+visualisation of the program's graph.
 
 I need to think about how function application is done. Problem is we can't
 easily show how guards are stepped through etc. because we can't modify the

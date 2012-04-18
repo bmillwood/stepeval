@@ -39,9 +39,9 @@ Library
   Other-modules:   Parenthise
 
   Build-Depends:
-      base >= 4 && < 4.5,
+      base >= 4 && < 4.6,
       containers >= 0.1 && < 0.5,
-      haskell-src-exts == 1.11.*,
+      haskell-src-exts >= 1.11 && < 1.14,
       syb >= 0.1 && < 0.4
 
   GHC-Options:    -W
@@ -55,9 +55,9 @@ Executable stepeval
     Other-Modules:  Language.Haskell.Stepeval, Parenthise
 
     Build-Depends:
-        base >= 4 && < 4.5,
+        base >= 4 && < 4.6,
         containers >= 0.1 && < 0.5,
-        haskell-src-exts == 1.11.*,
+        haskell-src-exts >= 1.11 && < 1.14,
         syb >= 0.1 && < 0.4
 
     GHC-Options:    -W
@@ -72,13 +72,13 @@ Executable test
     Other-Modules:  Language.Haskell.Stepeval, Parenthise
 
     Build-Depends:
-        base >= 4 && < 4.5,
+        base >= 4 && < 4.6,
         containers >= 0.1 && < 0.5,
         directory >= 1.0 && < 1.2,
-        filepath >= 1.1 && < 1.3,
-        haskell-src-exts == 1.11.*,
+        filepath >= 1.1 && < 1.4,
+        haskell-src-exts >= 1.11 && < 1.14,
         syb >= 0.1 && < 0.4,
-        transformers == 0.2.*
+        transformers >= 0.2 && < 0.4
 
     GHC-Options:    -W
   else

@@ -4,12 +4,11 @@ import Language.Haskell.Stepeval
 
 import Control.Applicative
 import Control.Concurrent
-import Control.Exception
+import Control.Exception as E
 import Control.Monad
 import Data.Char
 import Language.Haskell.Exts
 import Numeric
-import Prelude hiding (catch)
 import System.Environment
 import System.IO
 import Text.Printf
@@ -77,7 +76,7 @@ cgiMain qstr = do
    "</form>\n"]
  myThreadId >>= forkIO . (threadDelay 500000 >>) . killThread
  unless (null exp) $ case parseExp exp of
-  ParseOk e -> output prelude e `catch` \e -> const
+  ParseOk e -> output prelude e `E.catch` \e -> const
    (putStrLn "Hard time limit expired! This is probably a bug :(")
    (e :: AsyncException)
   ParseFailed _ _ -> putStrLn "Sorry, parsing failed."
@@ -91,7 +90,7 @@ cgiMain qstr = do
        output prelude e = do
         eval <- newEmptyMVar
         forkIO $ (mapM_ (putMVar eval . Eval) (itereval prelude e) >>
-         putMVar eval Finished) `catch`
+         putMVar eval Finished) `E.catch`
          (\(ErrorCall s) -> putMVar eval (Error s))
         forkIO $ threadDelay 250000 >> putMVar eval Terminated
         putStrLn "<ol>"

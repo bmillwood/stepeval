@@ -1,6 +1,6 @@
 module Parenthise (deparen, enparen, enparenWith, scopeToFixities) where
 
-import Data.Generics (GenericT, everywhere, extT, gmapT, mkT)
+import Data.Generics (Data, everywhere, extT, gmapT, mkT)
 import Data.Foldable (foldMap)
 import Data.Monoid (Any (Any, getAny))
 import Language.Haskell.Exts
@@ -18,12 +18,12 @@ deparen = everywhere (mkT dp)
  where dp (Paren p) = dp p
        dp r = r
 
-enparen :: GenericT
+enparen :: Data a => a -> a
 enparen = enparenWith []
 
-enparenWith :: [Fixity] -> GenericT
+enparenWith :: Data a => [Fixity] -> a -> a
 enparenWith xs = recurse
- where recurse :: GenericT
+ where recurse :: Data a => a -> a
        recurse = gmapT recurse `extT` parenE xs `extT` parenM xs
 
 parenE :: [Fixity] -> Exp -> Exp
@@ -64,7 +64,7 @@ parenE xs e = gmapT (enparenWith xs) e
 
 parenM :: [Fixity] -> Match -> Match
 parenM xs (Match s n ps t r bs) = Match s n (f ps) t (f r) (f bs)
- where f :: GenericT
+ where f :: Data a => a -> a
        f = enparenWith $ case bs of
         BDecls ds -> scopeToFixities ds ++ xs
         _ -> xs

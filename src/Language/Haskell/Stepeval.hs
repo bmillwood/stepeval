@@ -7,7 +7,7 @@ import Data.Foldable (foldMap)
 import Data.List (delete, find, partition, unfoldr)
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.Monoid (Endo (Endo, appEndo))
-import Data.Generics (GenericQ, GenericT, Typeable,
+import Data.Generics (Data, Typeable,
   everything, everywhereBut, extQ, extT, gmapQ, gmapT, listify, mkQ, mkT)
 import qualified Data.Set as Set (fromList, toList)
 
@@ -148,7 +148,7 @@ step v e@(App f x) = magic v e `orE` case argList e of
           | otherwise -> applyLambda s qs (applyMatches ms e) xs
          where
           newLambda = Lambda s (fixNames ps) (fixNames e)
-          fixNames :: GenericT -- the DMR strikes again
+          fixNames :: Data a => a -> a -- the DMR strikes again
           -- The first pattern in the lambda is about to be gobbled.
           -- Rename every other pattern that will conflict with any of the
           -- names introduced by the pattern match. We avoid names already
@@ -521,7 +521,7 @@ fromQName q = error $ "fromQName: " ++ show q
 
 -- | Given a list of 'MatchResult', substitute the bindings wherever they
 -- are not shadowed.
-applyMatches :: [MatchResult] -> GenericT
+applyMatches :: Data a => [MatchResult] -> a -> a
 -- If it's not an Exp, just recurse into it, otherwise try to substitute...
 applyMatches ms x = recurse `extT` replaceOne $ x
  where
@@ -544,7 +544,7 @@ mlookup m = foldr (\x r -> x <$ guard (m == mrName x) <|> r) Nothing
 -- | Produce a 'GenericT' that renames all instances of the given 'Name' to
 -- something else that isn't any of the given @['Name']@. Does not apply the
 -- rename where the name is shadowed.
-alpha :: Name -> [Name] -> GenericT
+alpha :: Data a => Name -> [Name] -> a -> a
 alpha n avoid = everywhereBut (shadows n) (mkT $ replaceOne n m)
  where
   -- genNames produces an infinite list, so find cannot give Nothing
@@ -558,7 +558,7 @@ alpha n avoid = everywhereBut (shadows n) (mkT $ replaceOne n m)
 -- anywhere in the structure.
 -- Always returns 'True' for @>>=@ and @>>@ if there are any do-expressions
 -- present.
-isFreeIn :: Name -> GenericQ Bool
+isFreeIn :: Data a => Name -> a -> Bool
 isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))
  where
   is n@(Symbol s)
@@ -568,7 +568,7 @@ isFreeIn n x = not (shadows n x) && (is n x || or (gmapQ (isFreeIn n) x))
   isDo _ = False
 
 -- | Fetches a list of all 'Name's present but not bound in the argument.
-freeNames :: GenericQ [Name]
+freeNames :: Data a => a -> [Name]
 freeNames e = filter (`isFreeIn` e) . Set.toList . Set.fromList $
   listify (const True) e
 
@@ -709,7 +709,7 @@ unArgList :: Exp -> [Exp] -> Exp
 unArgList = foldl app
 
 -- | Return 'True' if the argument binds the given 'Name'
-shadows :: Name -> GenericQ Bool
+shadows :: Typeable a => Name -> a -> Bool
 shadows n = mkQ False exprS `extQ` altS `extQ` matchS
  where
   exprS (Lambda _ ps _) = any patS ps
@@ -725,7 +725,7 @@ shadows n = mkQ False exprS `extQ` altS `extQ` matchS
   letS _ = False
 
 -- | 'True' if the predicate holds anywhere inside the structure.
-anywhere :: (Typeable a) => (a -> Bool) -> GenericQ Bool
+anywhere :: (Typeable a, Data b) => (a -> Bool) -> b -> Bool
 anywhere p = everything (||) (mkQ False p)
 
 todo :: (Show s) => String -> s -> a

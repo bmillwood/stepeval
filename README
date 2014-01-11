@@ -15,7 +15,7 @@ Contact: haskell at benmachine dot co dot uk
  or via IRC: benmachine on Freenode or QuakeNet
 
 If you want to see things in action without downloading anything, try
-http://www.srcf.ucam.org/~bm380/cgi-bin/stepeval.cgi
+http://bm380.user.srcf.net/cgi-bin/stepeval.cgi
 where an example instance of the CGI script is usually running.
 
 BUILD NOTES:

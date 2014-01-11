@@ -64,7 +64,7 @@ cgiMain qstr = do
    "<style type=\"text/css\">\n",
    "ol { white-space: pre; font-family: monospace }\n</style>\n",
    "</head>\n<body>\n",
-   "<p><a href=\"http://github.com/benmachine/stepeval\">",
+   "<p><a href=\"http://github.com/bmillwood/stepeval\">",
    "Source</a></p>\n",
    if null prelude then "" else
     "<p><a href=\"" ++ preludeFile ++ "\">Prelude</a></p>\n",
